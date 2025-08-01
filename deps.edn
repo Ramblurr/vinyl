@@ -1,0 +1,22 @@
+{:paths   ["src" "resources"]
+ :deps    {org.clojure/clojure         {:mvn/version "1.12.1"}
+           uk.co.caprica/vlcj          {:mvn/version "5.0.0-M4"}
+           babashka/fs                 {:mvn/version "0.5.26"}
+           metosin/malli               {:mvn/version "0.19.1"}
+           com.fulcrologic/statecharts {:mvn/version "1.2.21"
+                                        :exclusions  [com.fulcrologic/fulcro-devtools-remote
+                                                      com.fulcrologic/fulcro-inspect
+                                                      org.eclipse.elk/org.eclipse.elk.core
+                                                      org.eclipse.elk/org.eclipse.elk.graph
+                                                      org.eclipse.elk/org.eclipse.elk.graph.json
+                                                      org.eclipse.elk/org.eclipse.elk.alg.layered
+                                                      org.eclipse.elk/org.eclipse.elk.alg.common]}
+           com.fulcrologic/guardrails  {:mvn/version "1.2.9"}}
+ :aliases {:dev    {:extra-deps  {}
+                    :extra-paths ["env/dev/clj" "env/dev/resources" "test"]
+                    :jvm-opts    ["-Djdk.attach.allowAttachSelf" ;; https://nrepl.org/nrepl/installation.html#jvmti
+                                  "-Dguardrails.enabled=true"
+                                  "--add-opens=java.base/java.nio=ALL-UNNAMED"
+                                  "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED"]}
+           :kaocha {:extra-deps {lambdaisland/kaocha {:mvn/version "1.91.1392"}}
+                    :main-opts  ["-m" "kaocha.runner"]}}}
