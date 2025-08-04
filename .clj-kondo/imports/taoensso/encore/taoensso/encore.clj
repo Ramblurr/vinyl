@@ -10,7 +10,7 @@
               (symbol (name (hooks/sexpr src))))]
     {:node (with-meta
              (hooks/list-node
-               [(hooks/token-node 'def)
-                (hooks/token-node (hooks/sexpr sym))
-                (hooks/token-node (hooks/sexpr src))])
+              [(hooks/token-node 'def)
+               (hooks/token-node (hooks/sexpr sym))
+               (hooks/token-node (hooks/sexpr src))])
              (meta src))}))

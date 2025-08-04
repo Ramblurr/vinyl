@@ -7,10 +7,10 @@
     (when-not (api/token-node? channel) (throw (ex-info "Missing channel argument" {})))
     (let [new-node
           (api/list-node
-            (list*
-              (api/token-node 'let)
-              (api/vector-node [channel (api/vector-node [])])
-              request
-              body))]
+           (list*
+            (api/token-node 'let)
+            (api/vector-node [channel (api/vector-node [])])
+            request
+            body))]
 
       {:node new-node})))

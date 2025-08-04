@@ -27,3 +27,4 @@ env/dev/scratch/
 hosts
 .claude
 CLAUDE.md
+.portal/
