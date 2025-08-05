@@ -1,14 +1,15 @@
 ;; Copyright © 2025 Casey Link <casey@outskirtslabs.com>
 ;; SPDX-License-Identifier: EUPL-1.2
 (ns ol.vinyl
-  "High-level, data-oriented Clojure interface for media playback via vlcj.
+  "A small headless audio player for clojure powered by vlc.
 
   This namespace provides the public API for creating and controlling a media
-  player. The core abstraction is the 'player', a stateful but observable
-  atom that manages all underlying vlcj resources and state.
+  player. The core abstraction is the 'player', a stateful resource that requires
+  lifecycle management. You should treat the player as an opaque object, as the
+  internals are not part of the public API and may change without notice.
 
   Interaction is divided into two categories:
-  1. Control: Functions like `play`, `pause`, `set-volume` for commanding the player.
+  1. Command and Control: Features like `play`, `pause`, `set-volume` for commanding the player.
   2. Observation: A subscription model (`subscribe!`, `unsubscribe!`) for reacting
      to a stream of events from the player."
   (:require
@@ -18,8 +19,39 @@
    [ol.vinyl.impl :as impl])
   (:import [uk.co.caprica.vlcj.player.base Equalizer]))
 
-(defn init! []
+(defn init!
+  "Creating a [[uk.co.caprica.vlcj.factory.MediaPlayerFactory]] is required for using vlcj,
+  creating one initializes the native libraries and memory space. This can take a few seconds.
+
+  This init! function gives you control over when the factory is intialized. It
+  will create a fresh factory and return it.  It caches the factory in a var so
+  it can be re-used. You can use [[factory]] to get the factory or [[deinit]] to
+  release it (not recommended).
+
+  Some other functions in this namespace accept a `:media-player-factory`
+  option, you should pass the factory created here to those functions, otherwise
+  they will create their own during which they will block for a few seconds."
+  []
   (factory/init!))
+
+(defn deinit!
+  "Releases the [[uk.co.caprica.vlcj.factory.MediaPlayerFactory]].
+
+  In general it is not necessary to call this function, as the factory is little
+  more than an initialization mechanism for libvlc, and libvlc is notorious for
+  not handling deinitialization of these library-wide components gracefully.
+
+  See [[init!]]."
+  []
+  (factory/deinit!))
+
+(defn factory
+  "Returns the singleton [[uk.co.caprica.vlcj.factory.MediaPlayerFactory]] instance.
+
+  This is the factory that was created by `init!` and is used to create player
+  instances. If you have not called `init!`, this will return nil."
+  []
+  factory/singleton)
 
 (defn create-player
   "Creates and initializes a new media player instance.
@@ -33,9 +65,14 @@
   - `:media-player-factory`: An optional pre-initialized [[uk.co.caprica.vlcj.factory/MediaPlayerFactory]] instance.
     If not provided, a new factory will be created with default settings. If provided, you are responsible for releasing it
 
-  Returns an opaque player instance.
+  Returns an opaque player instance, which you must keep a hard reference to to
+  prevent it from being garbage collected. If a player is GCed you will see
+  unpredictable behavior, including fatal JVM crashes.
 
-  When you are finished with the player, you must call `release-player!`"
+  When you are finished with the player, you must call `release-player!`
+
+  It is always a better strategy to reuse player instances, rather than
+  repeatedly creating and destroying them."
   ([] (create-player {}))
   ([opts]
    (impl/create-player-impl opts)))
@@ -53,9 +90,9 @@
 ;; --- Control API ---
 
 (defn dispatch
-  "Dispatches a control or mixer event to the player."
-  [player event]
-  (bus/dispatch-event! player event))
+  "Dispatches a command to the player."
+  [player command]
+  (bus/dispatch-event! player command))
 
 ;; --- Async Observation API ---
 
@@ -145,11 +182,6 @@ To return a useful value, an audio output must be active (i.e. the media must be
   "Can the current media be paused?"
   [player]
   (impl/can-pause?-impl player))
-
-(defn program-scrambled?
-  "Is the current program scrambled?"
-  [player]
-  (impl/program-scrambled?-impl player))
 
 (defn get-length
   "Get the length of the current media item.
@@ -259,6 +291,11 @@ To return a useful value, an audio output must be active (i.e. the media must be
   - :mrl - the media resource locator
   - :state - the current media state
   - :meta - metadata map with the parsed tags (e.g., title, artist, album, etc.)
+
+  and if the queue has a current track will also include:
+
+  - :audio-tracks
+  - :media-type
   
   Returns nil if no media is currently loaded."
   [player]

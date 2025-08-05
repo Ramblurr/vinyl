@@ -94,11 +94,6 @@
   (ensure-not-released! i)
   (api/can-pause? player))
 
-(defn program-scrambled?-impl
-  [{::keys [player] :as i}]
-  (ensure-not-released! i)
-  (api/program-scrambled? player))
-
 (defn get-length-impl
   [{::keys [player] :as i}]
   (ensure-not-released! i)
