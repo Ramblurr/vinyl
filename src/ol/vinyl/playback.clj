@@ -2,11 +2,13 @@
 ;; SPDX-License-Identifier: EUPL-1.2
 (ns ol.vinyl.playback
   (:require
+   [clojure.core.async :as async]
    [ol.vinyl.bus :as bus]
    [ol.vinyl.commands :as cmd]
    [ol.vinyl.interop.api :as api]
    [ol.vinyl.interop.parsing :as parsing]
-   [ol.vinyl.queue :as queue]))
+   [ol.vinyl.queue :as queue]
+   [ol.vinyl.schema :as s]))
 
 (defn handle-player-event [{:ol.vinyl.impl/keys [_state_]} _event]
   #_(when-not (contains? #{:vlc/time-changed :vlc/position-changed} (:ol.vinyl/event event))
@@ -18,15 +20,65 @@
                                      {:queue (queue/create-queue)
                                       :sub-id sub-id}))))
 
-(defn- queue [{:ol.vinyl.impl/keys [state_] :as _instance}]
-  (get-in @state_ [:playback :queue]))
+(defn- queue [instance]
+  (let [state_ (if-let [state_ (:ol.vinyl.impl/state_ instance)]
+                 @state_
+                 instance)]
+    (get-in state_ [:playback :queue])))
 
-(defn- set-queue [{:ol.vinyl.impl/keys [state_] :as _instance} new-queue]
-  (swap! state_ assoc-in [:playback :queue] new-queue))
+(defn emit [{:ol.vinyl.impl/keys [<events]} event-name & {:as payload}]
+  (let [ev (merge payload {:ol.vinyl/event event-name})]
+    (s/ensure-valid! ev)
+    (async/put! <events ev)))
 
-(defn release! [{:ol.vinyl.impl/keys [state_] :as instance}]
-  (bus/unsubscribe-impl! instance (get-in @state_ [:playback :sub-id]))
-  (set-queue instance (queue/clear-all (queue instance))))
+(defn notify-player
+  "Notify the player play or stop playing based on the current track"
+  [instance current]
+  (if current
+    (bus/dispatch-command! instance
+                           {:ol.vinyl/command :vlcj.media-api/play
+                            :mrl-or-media-ref (:mrl current)})
+    (bus/dispatch-command! instance {:ol.vinyl/command :vlcj.controls-api/stop})))
+
+(defn emit-queue-changed [i olds news]
+  (let [before (queue/list-all olds)
+        after (queue/list-all news)]
+    (when-not (= before after)
+      (emit i ::queue-changed
+            :before-queue  before
+            :after-queue after))))
+
+(defn emit-current-changed [i olds news]
+  (let [current-before (queue/get-current olds)
+        current-after (queue/get-current news)]
+    (when-not (= current-before current-after)
+      (notify-player i current-after)
+      (emit i ::current-track-changed
+            :current-track current-after))))
+
+(defn emit-repeat-changed [i olds news]
+  (let [mode-before (queue/repeat-mode olds)
+        mode-after (queue/repeat-mode news)]
+    (when-not (= mode-before mode-after)
+      (emit i ::repeat-changed
+            :mode-before mode-before
+            :mode-after mode-after))))
+
+(defn emit-shuffle-changed [i olds news]
+  (let [shuffle-before (queue/shuffle? olds)
+        shuffle-after (queue/shuffle? news)]
+    (when-not (= shuffle-before shuffle-after)
+      (emit i ::shuffle-changed
+            :shuffle? shuffle-after))))
+
+(defn- set-queue [{:ol.vinyl.impl/keys [state_] :as i} new-queue]
+  (let [[olds news] (swap-vals! state_ assoc-in [:playback :queue] new-queue)
+        oldq (queue olds)
+        newq (queue news)]
+    (emit-queue-changed i oldq newq)
+    (emit-repeat-changed i oldq newq)
+    (emit-shuffle-changed i oldq newq)
+    (emit-current-changed i oldq newq)))
 
 (defn list-all [instance]
   (queue/list-all (queue instance)))
@@ -34,18 +86,9 @@
 (defn get-current [instance]
   (queue/get-current (queue instance)))
 
-(defn notify-player
-  "Notify the player play or stop playing based on the current track"
-  [instance new-queue]
-  (if-let [current (queue/get-current new-queue)]
-    (bus/dispatch-command! instance
-                           {:ol.vinyl/command :vlcj.media-api/play
-                            :mrl-or-media-ref (:mrl current)})
-    (bus/dispatch-command! instance {:ol.vinyl/command :vlcj.controls-api/stop})))
-
-(defn update-queue-and-player [instance new-queue]
-  (set-queue instance new-queue)
-  (notify-player instance new-queue))
+(defn release! [{:ol.vinyl.impl/keys [state_] :as instance}]
+  (bus/unsubscribe-impl! instance (get-in @state_ [:playback :sub-id]))
+  (set-queue instance (queue/clear-all (queue instance))))
 
 (defn expand-paths [instance tracks]
   (let [result @(parsing/parse-meta tracks {:media-player-factory (get-in instance [:ol.vinyl.impl/player :vlc/media-player-factory])})]
@@ -60,7 +103,7 @@
   (cmd/ensure-valid! cmd)
   (let [prev-queue (queue instance)]
     (when (queue/can-advance? prev-queue)
-      (update-queue-and-player instance (queue/advance prev-queue)))))
+      (set-queue instance (queue/advance prev-queue)))))
 
 (defmethod cmd/dispatch :playback/append
   [instance {:keys [paths] :as cmd}]
@@ -78,7 +121,7 @@
   [instance cmd]
   (cmd/ensure-valid! cmd)
   (let [prev-queue (queue instance)]
-    (update-queue-and-player instance (queue/clear-all prev-queue))
+    (set-queue instance (queue/clear-all prev-queue))
     (bus/dispatch-command! instance {:ol.vinyl/command :vlcj.media-api/reset})))
 
 (defmethod cmd/dispatch :playback/next-track
@@ -86,14 +129,14 @@
   (cmd/ensure-valid! cmd)
   (let [prev-queue (queue instance)]
     (when (queue/can-advance? prev-queue)
-      (update-queue-and-player instance (queue/next-track prev-queue)))))
+      (set-queue instance (queue/next-track prev-queue)))))
 
 (defmethod cmd/dispatch :playback/previous-track
   [instance cmd]
   (cmd/ensure-valid! cmd)
   (let [prev-queue (queue instance)]
     (when (queue/can-rewind? prev-queue)
-      (update-queue-and-player instance (queue/prev-track prev-queue)))))
+      (set-queue instance (queue/prev-track prev-queue)))))
 
 (defmethod cmd/dispatch :playback/set-shuffle
   [instance cmd]
@@ -132,7 +175,7 @@
     (when (seq tracks)
       (let [new-queue (queue/replace-at prev-queue position tracks)]
         (if (= position 0)
-          (update-queue-and-player instance new-queue)
+          (set-queue instance new-queue)
           (set-queue instance new-queue))))))
 
 (defmethod cmd/dispatch :playback/remove-at
@@ -142,7 +185,7 @@
         position   (:position cmd)
         new-queue  (queue/remove-at prev-queue [position])]
     (if (= position 0)
-      (update-queue-and-player instance new-queue)
+      (set-queue instance new-queue)
       (set-queue instance new-queue))))
 
 (defmethod cmd/dispatch :playback/add-next

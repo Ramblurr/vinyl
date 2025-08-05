@@ -73,7 +73,8 @@
                  :normal [(track "d")]}]
       (is (= {:history [(track "a")]
               :current (track "b")
-              :upcoming [(track "c") (track "d")]}
+              :priority [(track "c")]
+              :normal [(track "d")]}
              (q/list-all queue))))))
 
 (deftest append-test

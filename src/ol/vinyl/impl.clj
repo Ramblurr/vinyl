@@ -17,6 +17,7 @@
         instance {::player (player/create-audio-player! <events media-player-factory)
                   ::<control <control
                   ::<close <close
+                  ::<events <events
                   ::state_ (atom {:subscriptions {}})}]
     (bus/start-control-loop! instance)
     (bus/start-event-loop! instance)

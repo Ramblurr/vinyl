@@ -2,17 +2,11 @@
 ;; SPDX-License-Identifier: EUPL-1.2
 (ns ol.vinyl.commands
   (:require
+   [ol.vinyl.schema :as s]
    [malli.core :as m]
-   [malli.util :as mu]
-   [ol.vinyl.interop.enum :as enum]
-   [ol.vinyl.protocols :as protocols])
+   [malli.util :as mu])
   (:import
-   [uk.co.caprica.vlcj.media MediaRef]
-   [uk.co.caprica.vlcj.player.base AudioChannel Equalizer]))
-
-(def audio-channel-enum (into [:enum] (vals (:enum->kw-map (enum/create-enum-converters AudioChannel)))))
-(def media-ref-schema [:fn #(instance? MediaRef %)])
-(def playable-schema [:fn protocols/playable?])
+   [uk.co.caprica.vlcj.player.base Equalizer]))
 
 (defn command-map [doc]
   [:map {:doc doc
@@ -53,13 +47,13 @@
                     [:to {:doc "the new position of the track"} :int])
    :playback/replace-at (with-payload "Replace a track in the queue at a specific position"
                           [:position {:doc "the position to replace"} :int]
-                          [:paths {:doc "the paths to insert"} [:sequential playable-schema]])
+                          [:paths {:doc "the paths to insert"} [:sequential s/playable-schema]])
    :playback/remove-at (with-payload "Remove a track from the queue at a specific position"
                          [:position {:doc "the position to remove"} :int])
    :playback/add-next (with-payload "Adds tracks to the end of the priority queue."
-                        [:paths {:doc "the paths to add"} [:sequential playable-schema]])
+                        [:paths {:doc "the paths to add"} [:sequential s/playable-schema]])
    :playback/append (with-payload "Append tracks to the end of the queue."
-                      [:paths {:doc "the paths to append"} [:sequential playable-schema]])
+                      [:paths {:doc "the paths to append"} [:sequential s/playable-schema]])
    :playback/play-from (with-payload "Play a specific track in the queue."
                          [:index {:doc "the queue index of the track to play"} :int])
    :playback/play (command-map "Begin play-back of the current item in the queue, or the next item in the queue if there is no current. If called when the play-back is paused, the play-back will resume from the current position.")
@@ -69,10 +63,10 @@
 (def player-controls
   "Corresponds to commands on [[uk.co.caprica.vlcj.player.base.MediaApi]]"
   {:vlcj.media-api/play (with-payload "Set new media and play it."
-                          [:mrl-or-media-ref {:doc "media resource locator or MediaRef. The handler takes responsibility for freeing the media resource"} [:or :string media-ref-schema]]
+                          [:mrl-or-media-ref {:doc "media resource locator or MediaRef. The handler takes responsibility for freeing the media resource"} [:or :string s/media-ref-schema]]
                           [:options {:optional true :doc "zero or more options to attach to the new media"} [:sequential :string]])
    :vlcj.media-api/prepare (with-payload "Prepare new media (set it, do not play it)."
-                             [:mrl-or-media-ref {:doc "media resource locator or MediaRef. The handler takes responsibility for freeing the media resource"} [:or :string media-ref-schema]]
+                             [:mrl-or-media-ref {:doc "media resource locator or MediaRef. The handler takes responsibility for freeing the media resource"} [:or :string s/media-ref-schema]]
                              [:options {:optional true :doc "zero or more options to attach to the new media"} [:sequential :string]])
    :vlcj.media-api/reset (command-map "Reset the media (i.e. unset it).")})
 
@@ -102,7 +96,7 @@
    :vlcj.audio-api/set-volume (with-payload "Set the volume. The volume is actually a percentage of full volume, setting a volume over 100 may cause audible distortion."
                                 [:level {:doc "volume, a percentage of full volume in the range 0 to 200"} :int])
    :vlcj.audio-api/set-channel (with-payload "Set the audio channel. see `audio-channels`"
-                                 [:channel {:doc "audio channel, one of the values in `audio-channels`"} audio-channel-enum])
+                                 [:channel {:doc "audio channel, one of the values in `audio-channels`"} s/audio-channel-enum])
    :vlcj.audio-api/set-delay (with-payload "Set the audio delay. The audio delay is set for the current item only and will be reset to zero each time the media changes."
                                [:delay {:doc "desired audio delay, in microseconds"} :int])
    :vlcj.audio-api/set-equalizer (with-payload "Set the audio equalizer."

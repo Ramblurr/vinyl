@@ -183,7 +183,8 @@
   [{:keys [history current priority normal]}]
   {:history history
    :current current
-   :upcoming (vec (concat priority normal))})
+   :priority priority
+   :normal normal})
 
 (defn append
   "Adds tracks to the end of the normal queue."
@@ -301,7 +302,8 @@
     (let [all-data (list-all queue)
           all-tracks (concat (reverse (:history all-data))
                              (when (:current all-data) [(:current all-data)])
-                             (:upcoming all-data))]
+                             (:priority all-data)
+                             (:normal all-data))]
       (if (> (count all-tracks) 1)
         (-> queue
             (assoc :history []
