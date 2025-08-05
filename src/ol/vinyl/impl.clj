@@ -12,8 +12,9 @@
 (defn create-player-impl
   [{:keys [media-player-factory] :as _opts}]
   (let [<control (async/chan (async/sliding-buffer 32))
+        <events (async/chan (async/sliding-buffer 32))
         <close (async/chan)
-        instance {::player (player/create-audio-player! media-player-factory)
+        instance {::player (player/create-audio-player! <events media-player-factory)
                   ::<control <control
                   ::<close <close
                   ::state_ (atom {:subscriptions {}})}]
@@ -23,9 +24,10 @@
     instance))
 
 (defn release-player-impl!
-  [{::keys [player <close state_] :as instance}]
+  [{::keys [<events player <close state_] :as instance}]
   (when-not (= @state_ :released)
     (async/>!! <close :close)
+    (async/close! <events)
     (player/release! player)
     (playback/release! instance)
     (reset! state_ :released)))

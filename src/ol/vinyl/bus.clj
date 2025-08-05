@@ -55,6 +55,8 @@
         (when-not (realized? halt_)
           (recur))))))
 
+(defn start-event-loop! [{:ol.vinyl.impl/keys [<events <close state_] :as _instance}]
+  (util/thread
     (let [halt_ (promise)
           close-fn (fn [] (async/close! <events) (async/close! <close) (deliver halt_ :halt))]
       (loop []
@@ -95,6 +97,7 @@
 
 (defn subscribe-impl!
   [{:ol.vinyl.impl/keys [state_]} event-pred callback-fn]
+  (assert (fn? callback-fn) "Callback function must be a function")
   (let [subscription-id (java.util.UUID/randomUUID)
         pred-fn (normalize-event-predicate event-pred)]
     (swap! state_ assoc-in [:subscriptions subscription-id] {:pred pred-fn :cb callback-fn})

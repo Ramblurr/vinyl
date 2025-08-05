@@ -60,6 +60,8 @@
                         [:paths {:doc "the paths to add"} [:sequential playable-schema]])
    :playback/append (with-payload "Append tracks to the end of the queue."
                       [:paths {:doc "the paths to append"} [:sequential playable-schema]])
+   :playback/play-from (with-payload "Play a specific track in the queue."
+                         [:index {:doc "the queue index of the track to play"} :int])
    :playback/play (command-map "Begin play-back of the current item in the queue, or the next item in the queue if there is no current. If called when the play-back is paused, the play-back will resume from the current position.")
    :playback/stop (command-map "Stop play-back. A subsequent play will play-back from the start.")})
 
@@ -125,6 +127,7 @@
    :playback/set-pause :vlcj.controls-api/set-pause
    :playback/skip-time :vlcj.controls-api/skip-time
    :playback/skip-position :vlcj.controls-api/skip-position
+   :playback/set-time :vlcj.controls-api/set-time
    :playback/set-position :vlcj.controls-api/set-position})
 
 (def porcelain-commands

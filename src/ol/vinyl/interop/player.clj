@@ -15,7 +15,7 @@
         (log/error e "player put internal-ch error"))))
 
 ;; see package-private uk.co.caprica.vlcj.player.component/MediaPlayerComponentDefaults
-(def audio-media-player-args (into-array String ["--quiet" "--intf=dummy"]))
+(def ^String/1 audio-media-player-args (into-array String ["--quiet" "--intf=dummy"]))
 ;; see package-private uk.co.caprica.vlcj.player.component/EMBEDDED_MEDIA_PLAYER_ARGS
 #_(def embedded-media-player-args
     (into-array String ["--video-title=vlcj video output" "--no-snapshot-preview" "--quiet" "--intf=dummy"]))
@@ -24,15 +24,13 @@
   "Create a VLC audio player with the default settings.
   Returns an opaque map that can be passed to other functions under the .interop ns named 'player'.
   When the player is no longer needed, it should be released by calling `release!`."
-  ([]
-   (create-audio-player! nil))
-
-  ([^MediaPlayerFactory factory]
+  ([<events]
+   (create-audio-player! <events nil))
+  ([<events ^MediaPlayerFactory factory]
    (let [media-player-factory (or factory (MediaPlayerFactory. audio-media-player-args))
-         vlc-event-chan (async/chan (async/sliding-buffer 32))
          ^MediaPlayer media-player (.newMediaPlayer (.mediaPlayers media-player-factory))
-         event-listener (listener/create-media-player-listener (fn [ev] (async/put! vlc-event-chan ev)))
-         media-event-listener (listener/create-media-event-listener (fn [ev] (async/put! vlc-event-chan ev)))]
+         event-listener (listener/create-media-player-listener (fn [ev] (async/put! <events ev)))
+         media-event-listener (listener/create-media-event-listener (fn [ev] (async/put! <events ev)))]
 
      (.addMediaPlayerEventListener (.events media-player) event-listener)
      (.addMediaEventListener (.events media-player) media-event-listener)
@@ -41,13 +39,11 @@
       :vlc/media-player-factory media-player-factory
       :vlc/own-factory? (nil? factory)
       :vlc/event-listener event-listener
-      :vlc/media-event-listener media-event-listener
-      :vlc/<events vlc-event-chan})))
+      :vlc/media-event-listener media-event-listener})))
 
 (defn release!
   "Release the media player component and the associated native media player resources."
-  [{:vlc/keys [media-player media-player-factory <events own-factory? event-listener media-event-listener]}]
-  (async/close! <events)
+  [{:vlc/keys [^MediaPlayer media-player ^MediaPlayerFactory media-player-factory own-factory? event-listener media-event-listener]}]
   (.removeMediaPlayerEventListener (.events media-player) event-listener)
   (.removeMediaEventListener (.events media-player) media-event-listener)
   (loop [attempt 0]
