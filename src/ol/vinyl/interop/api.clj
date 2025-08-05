@@ -30,7 +30,7 @@
 ;; uk.co.caprica.vlcj.player.base.MediaApi
 
 (defmethod cmd/dispatch :vlcj.media-api/play
-  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player :as instance} {:keys [mrl-or-media-ref options] :as cmd}]
+  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player :as _instance} {:keys [mrl-or-media-ref options] :as cmd}]
   (cmd/ensure-valid! cmd)
   (let [^MediaApi media-api (.media media-player)
         ^String/1 options (when options (into-array String options))]
@@ -212,10 +212,6 @@
 (defn get-position
   [{:vlc/keys [^MediaPlayer media-player]}]
   (-> media-player .status .position))
-
-(defn program-scrambled?
-  [{:vlc/keys [^MediaPlayer media-player]}]
-  (-> media-player .status .programScrambled))
 
 (defn get-rate
   [{:vlc/keys [^MediaPlayer media-player]}]

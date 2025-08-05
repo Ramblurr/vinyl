@@ -8,7 +8,7 @@
    [ol.vinyl.interop.parsing :as parsing]
    [ol.vinyl.queue :as queue]))
 
-(defn handle-player-event [{:ol.vinyl.impl/keys [_state_]} event]
+(defn handle-player-event [{:ol.vinyl.impl/keys [_state_]} _event]
   #_(when-not (contains? #{:vlc/time-changed :vlc/position-changed} (:ol.vinyl/event event))
       (tap> event)))
 
@@ -139,11 +139,11 @@
   [instance cmd]
   (cmd/ensure-valid! cmd)
   (let [prev-queue (queue instance)
-        position (:position cmd)]
-    (let [new-queue (queue/remove-at prev-queue [position])]
-      (if (= position 0)
-        (update-queue-and-player instance new-queue)
-        (set-queue instance new-queue)))))
+        position   (:position cmd)
+        new-queue  (queue/remove-at prev-queue [position])]
+    (if (= position 0)
+      (update-queue-and-player instance new-queue)
+      (set-queue instance new-queue))))
 
 (defmethod cmd/dispatch :playback/add-next
   [instance cmd]
