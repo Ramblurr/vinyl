@@ -12,16 +12,19 @@
     (throw (ex-info "Player has been released and cannot be used anymore." {}))))
 
 (defn notify-subs [subscriptions event]
-  (doseq [[sub-id {:keys [pred cb]}] subscriptions
-          :when (pred event)]
-    (util/thread
-      (try
-        (cb event)
-        (catch Exception e
-          (tap> [:error "Uncaught exception in subscriber"
-                 {:sub-id sub-id
-                  :event event
-                  :error (.getMessage e)}]))))))
+  (doseq [[sub-id {:keys [pred cb]}] subscriptions]
+    (when (pred event)
+      (util/thread
+        (try
+          (if event
+            (cb event)
+            (tap> [:warn "Subscriber callback received nil event"
+                   {:sub-id sub-id :event event}]))
+          (catch Exception e
+            (tap> [:error "Uncaught exception in subscriber"
+                   {:sub-id sub-id
+                    :event event
+                    :error (.getMessage e)}])))))))
 
 (defn dispatch-control-command [instance cmd]
   (ensure-not-released! instance)
@@ -37,31 +40,34 @@
 
 (defn start-control-loop! [{:ol.vinyl.impl/keys [<control <close] :as instance}]
   (util/thread
-    (let [halt* (promise)]
+    (let [halt_ (promise)
+          close-fn (fn [] (async/close! <control) (async/close! <close) (deliver halt_ :halt))]
       (loop []
         (try
-          (async/alt!! [<close] (do (async/close! <control) (async/close! <close) (deliver halt* :halt))
+          (async/alt!! [<close] (close-fn)
                        [<control] ([command]
-                                   (dispatch-control-command instance command)))
+                                   (if command
+                                     (dispatch-control-command instance command)
+                                     (close-fn))))
 
           (catch Exception e
             (tap> [:error "Error processing control command" e])))
-        (when-not (realized? halt*)
+        (when-not (realized? halt_)
           (recur))))))
 
-(defn start-event-loop! [{:ol.vinyl.impl/keys [player <close state_] :as _instance}]
-  (let [<events (:vlc/<events player)]
-    (util/thread
-      (let [halt_ (promise)]
-        (loop []
-          (try
-            (async/alt!! [<close] (do (async/close! <events) (async/close! <close) (deliver halt_ :halt))
-                         [<events] ([event]
-                                    (notify-subs (:subscriptions @state_) event)))
-            (catch Exception e
-              (tap> [:error "Error processing VLC event" e])))
-          (when-not (realized? halt_)
-            (recur)))))))
+    (let [halt_ (promise)
+          close-fn (fn [] (async/close! <events) (async/close! <close) (deliver halt_ :halt))]
+      (loop []
+        (try
+          (async/alt!! [<close] (close-fn)
+                       [<events] ([event]
+                                  (if event
+                                    (notify-subs (:subscriptions @state_) event)
+                                    (close-fn))))
+          (catch Exception e
+            (tap> [:error "Error processing VLC event" e])))
+        (when-not (realized? halt_)
+          (recur))))))
 
 (defn dispatch-command!
   "Puts a control command onto the internal event channel for processing.
