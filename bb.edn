@@ -1,6 +1,5 @@
 {:min-bb-version "0.8.156"
  :deps           {}
- :pods           {org.babashka/fswatcher {:version "0.0.5"}}
  :paths          ["resources" "scripts"]
  :tasks          {:requires         ([babashka.fs :as fs]
                                      [clojure.string :as str]
