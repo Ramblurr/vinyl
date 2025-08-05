@@ -1,3 +1,5 @@
+;; Copyright © 2025 Casey Link <casey@outskirtslabs.com>
+;; SPDX-License-Identifier: EUPL-1.2
 (ns ol.vinyl
   "High-level, data-oriented Clojure interface for media playback via vlcj.
 

@@ -1,3 +1,5 @@
+;; Copyright © 2025 Casey Link <casey@outskirtslabs.com>
+;; SPDX-License-Identifier: EUPL-1.2
 (ns ol.vinyl.factory
   "Creating a MediaPlayerFactory is required for using vlcj. The first time it is created, it initializes the native libraries.
   This can take a few seconds.

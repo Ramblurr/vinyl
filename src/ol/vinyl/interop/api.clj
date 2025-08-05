@@ -1,3 +1,5 @@
+;; Copyright © 2025 Casey Link <casey@outskirtslabs.com>
+;; SPDX-License-Identifier: EUPL-1.2
 (ns ol.vinyl.interop.api
   (:require [ol.vinyl.commands :as cmd]
             [ol.vinyl.interop.enum :as enum])
