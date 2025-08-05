@@ -10,16 +10,6 @@
    [ol.vinyl.queue :as queue]
    [ol.vinyl.schema :as s]))
 
-(defn handle-player-event [{:ol.vinyl.impl/keys [_state_]} _event]
-  #_(when-not (contains? #{:vlc/time-changed :vlc/position-changed} (:ol.vinyl/event event))
-      (tap> event)))
-
-(defn init! [{:ol.vinyl.impl/keys [state_] :as instance}]
-  (let [sub-id (bus/subscribe-impl! instance (constantly true) (fn [e] (handle-player-event instance e)))]
-    (swap! state_ update :playback (fn [_]
-                                     {:queue (queue/create-queue)
-                                      :sub-id sub-id}))))
-
 (defn- queue [instance]
   (let [state_ (if-let [state_ (:ol.vinyl.impl/state_ instance)]
                  @state_
@@ -223,3 +213,18 @@
   [instance cmd]
   (cmd/ensure-valid! cmd)
   (bus/dispatch-command! instance {:ol.vinyl/command :vlcj.controls-api/stop}))
+
+(defn handle-player-event [i event]
+  (let [q (queue i)]
+    #_(tap> event)
+    (condp = (:ol.vinyl/event event)
+      :vlc/finished (when (queue/can-advance? q)
+                      (bus/dispatch-command! i {:ol.vinyl/command :playback/advance}))
+      nil
+      #_(tap> [:unhandled-event (:ol.vinyl/event event) event]))))
+
+(defn init! [{:ol.vinyl.impl/keys [state_] :as instance}]
+  (let [sub-id (bus/subscribe-impl! instance #{:vlc/finished :vlc/opening :vlc/paused :vlc/playing :vlc/stopped :vlc/error} (fn [e] (handle-player-event instance e)))]
+    (swap! state_ update :playback (fn [_]
+                                     {:queue (queue/create-queue)
+                                      :sub-id sub-id}))))
