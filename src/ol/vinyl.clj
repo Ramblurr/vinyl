@@ -122,16 +122,16 @@
   `event-pred` occurs.
 
   - `player`: The player instance to subscribe to.
+  - `callback-fn`: A single-argument function that will receive the event map.
   - `event-pred`: A predicate used to filter events. Can be:
       - A keyword (e.g., `:vlc/playing`) to match a single event type.
       - A set of keywords (e.g., `#{:vlc/playing :vlc/paused}`) to match any.
       - A function that takes an event map and returns a truthy value.
-  - `callback-fn`: A single-argument function that will receive the event map.
 
   Returns a unique subscription ID which can be used with `unsubscribe!`."
-  ([player event-pred]
-   (bus/subscribe-impl! player event-pred (constantly true)))
-  ([player event-pred callback-fn]
+  ([player callback-fn]
+   (bus/subscribe-impl! player (constantly true) callback-fn))
+  ([player callback-fn event-pred]
    (bus/subscribe-impl! player event-pred callback-fn)))
 
 (defn unsubscribe!
