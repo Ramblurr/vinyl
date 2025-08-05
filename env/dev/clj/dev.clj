@@ -42,7 +42,7 @@
 
 (comment
   (do
-    (require '[com.outskirtslabs.vlc :as mp])
+    (require '[ol.vinyl :as mp])
     (def _fac (mp/init!))
     (def mp (mp/create-player {:media-player-factory _fac})))
   (mp/release-player! mp)
@@ -85,7 +85,7 @@
   (mp/get-volume mp)
 
   (->
-   (get-in mp [:com.outskirtslabs.vlc.impl/player :vlc/media-player])
+   (get-in mp [:ol.vinyl.impl/player :vlc/media-player])
    .media
    .subitems
    .newMediaList
