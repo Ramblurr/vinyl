@@ -13,11 +13,13 @@
   2. Observation: A subscription model (`subscribe!`, `unsubscribe!`) for reacting
      to a stream of events from the player."
   (:require
-   [ol.vinyl.factory :as factory]
    [ol.vinyl.bus :as bus]
-   [ol.vinyl.playback :as playback]
-   [ol.vinyl.impl :as impl])
-  (:import [uk.co.caprica.vlcj.player.base Equalizer]))
+   [ol.vinyl.commands :as cmds]
+   [ol.vinyl.factory :as factory]
+   [ol.vinyl.impl :as impl]
+   [ol.vinyl.playback :as playback])
+  (:import
+   [uk.co.caprica.vlcj.player.base Equalizer]))
 
 (defn init!
   "Creating a [[uk.co.caprica.vlcj.factory.MediaPlayerFactory]] is required for using vlcj,
@@ -90,9 +92,26 @@
 ;; --- Control API ---
 
 (defn dispatch
-  "Dispatches a command to the player."
-  [player command]
-  (bus/dispatch-event! player command))
+  "Dispatches a command to the player.
+
+  In the 2-arity version, `command` can be either a valid command map (with the
+  :ol.vinyl/command key) or just the command name keyword itself."
+  ([player command-name & {:as payload}]
+   (bus/dispatch-command! player (merge payload {:ol.vinyl/command command-name})))
+  ([player command]
+   (let [command-map (if (map? command)
+                       command
+                       {:ol.vinyl/command command})]
+     (tap> [:command-map command-map (map? command)])
+     (bus/dispatch-command! player command-map))))
+
+(def porcelain-commands
+  "Returns a map of all available porcelain commands with docs"
+  cmds/porcelain-commands)
+
+(def doc-porcelain-commands
+  "Returns a tabluar structure documenting the available options, ready to tap> with portal or print with clojure.pprint/print-table"
+  cmds/doc-porcelain-commands)
 
 ;; --- Async Observation API ---
 
