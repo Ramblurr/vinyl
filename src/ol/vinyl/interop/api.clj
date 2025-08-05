@@ -34,7 +34,6 @@
   (cmd/ensure-valid! cmd)
   (let [^MediaApi media-api (.media media-player)
         ^String/1 options (when options (into-array String options))]
-    (tap> [:vlcj.media-api/play :instance instance :ol.vinyl/command cmd])
     (if (string? mrl-or-media-ref)
       (.play media-api ^String mrl-or-media-ref options)
       (let [^MediaRef media-ref mrl-or-media-ref]

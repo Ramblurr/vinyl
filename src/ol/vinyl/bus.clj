@@ -71,7 +71,6 @@
   [{:ol.vinyl.impl/keys [<control] :as i} command]
   (ensure-not-released! i)
   (let [command (cmd/resolve-alias command)]
-    (tap> [:resolvec command])
     (cmd/ensure-valid! command)
     (async/put! <control command)))
 

@@ -9,8 +9,8 @@
    [ol.vinyl.queue :as queue]))
 
 (defn handle-player-event [{:ol.vinyl.impl/keys [_state_]} event]
-  (when-not (contains? #{:vlc/time-changed :vlc/position-changed} (:ol.vinyl/event event))
-    (tap> event)))
+  #_(when-not (contains? #{:vlc/time-changed :vlc/position-changed} (:ol.vinyl/event event))
+      (tap> event)))
 
 (defn init! [{:ol.vinyl.impl/keys [state_] :as instance}]
   (let [sub-id (bus/subscribe-impl! instance (constantly true) (fn [e] (handle-player-event instance e)))]
@@ -22,7 +22,6 @@
   (get-in @state_ [:playback :queue]))
 
 (defn- set-queue [{:ol.vinyl.impl/keys [state_] :as _instance} new-queue]
-  (tap> [:set-queue new-queue])
   (swap! state_ assoc-in [:playback :queue] new-queue))
 
 (defn release! [{:ol.vinyl.impl/keys [state_] :as instance}]
@@ -60,7 +59,6 @@
   [instance cmd]
   (cmd/ensure-valid! cmd)
   (let [prev-queue (queue instance)]
-    (tap> [:playback/advance :instance instance :ol.vinyl/command cmd :prev-queue prev-queue :can-advance? (queue/can-advance? prev-queue)])
     (when (queue/can-advance? prev-queue)
       (update-queue-and-player instance (queue/advance prev-queue)))))
 
@@ -69,7 +67,6 @@
   (cmd/ensure-valid! cmd)
   (let [prev-queue (queue instance)
         tracks (expand-paths instance paths)]
-    (tap> [:playback/append :instance instance :ol.vinyl/command cmd :tracks tracks :paths paths :prev-queue prev-queue])
     (when (seq tracks)
       (let [new-queue (queue/append prev-queue tracks)]
         (set-queue instance new-queue)
@@ -81,7 +78,6 @@
   [instance cmd]
   (cmd/ensure-valid! cmd)
   (let [prev-queue (queue instance)]
-    (tap> [:playback/clear-all :instance instance :ol.vinyl/command cmd :prev-queue prev-queue])
     (update-queue-and-player instance (queue/clear-all prev-queue))
     (bus/dispatch-command! instance {:ol.vinyl/command :vlcj.media-api/reset})))
 
@@ -89,7 +85,6 @@
   [instance cmd]
   (cmd/ensure-valid! cmd)
   (let [prev-queue (queue instance)]
-    (tap> [:playback/next-track :instance instance :ol.vinyl/command cmd :prev-queue prev-queue])
     (when (queue/can-advance? prev-queue)
       (update-queue-and-player instance (queue/next-track prev-queue)))))
 
@@ -97,7 +92,6 @@
   [instance cmd]
   (cmd/ensure-valid! cmd)
   (let [prev-queue (queue instance)]
-    (tap> [:playback/previous-track :instance instance :ol.vinyl/command cmd :prev-queue prev-queue])
     (when (queue/can-rewind? prev-queue)
       (update-queue-and-player instance (queue/prev-track prev-queue)))))
 
@@ -106,7 +100,6 @@
   (cmd/ensure-valid! cmd)
   (let [prev-queue (queue instance)
         shuffle? (:shuffle? cmd)]
-    (tap> [:playback/set-shuffle :instance instance :ol.vinyl/command cmd :shuffle? shuffle? :prev-queue prev-queue])
     (set-queue instance (queue/set-shuffle prev-queue shuffle?))))
 
 (defmethod cmd/dispatch :playback/set-repeat
@@ -114,14 +107,12 @@
   (cmd/ensure-valid! cmd)
   (let [prev-queue (queue instance)
         mode (:mode cmd)]
-    (tap> [:playback/set-repeat :instance instance :ol.vinyl/command cmd :mode mode :prev-queue prev-queue])
     (set-queue instance (queue/set-repeat prev-queue mode))))
 
 (defmethod cmd/dispatch :playback/clear-upcoming
   [instance cmd]
   (cmd/ensure-valid! cmd)
   (let [prev-queue (queue instance)]
-    (tap> [:playback/clear-upcoming :instance instance :ol.vinyl/command cmd :prev-queue prev-queue])
     (set-queue instance (queue/clear-upcoming prev-queue))))
 
 (defmethod cmd/dispatch :playback/move
@@ -130,7 +121,6 @@
   (let [prev-queue (queue instance)
         from (:from cmd)
         to (:to cmd)]
-    (tap> [:playback/move :instance instance :ol.vinyl/command cmd :from from :to to :prev-queue prev-queue])
     (set-queue instance (queue/move prev-queue from to))))
 
 (defmethod cmd/dispatch :playback/replace-at
@@ -139,7 +129,6 @@
   (let [prev-queue (queue instance)
         position (:position cmd)
         tracks (expand-paths instance (:paths cmd))]
-    (tap> [:playback/replace-at :instance instance :ol.vinyl/command cmd :position position :tracks tracks :prev-queue prev-queue])
     (when (seq tracks)
       (let [new-queue (queue/replace-at prev-queue position tracks)]
         (if (= position 0)
@@ -151,7 +140,6 @@
   (cmd/ensure-valid! cmd)
   (let [prev-queue (queue instance)
         position (:position cmd)]
-    (tap> [:playback/remove-at :instance instance :ol.vinyl/command cmd :position position :prev-queue prev-queue])
     (let [new-queue (queue/remove-at prev-queue [position])]
       (if (= position 0)
         (update-queue-and-player instance new-queue)
@@ -162,7 +150,6 @@
   (cmd/ensure-valid! cmd)
   (let [prev-queue (queue instance)
         tracks (expand-paths instance (:paths cmd))]
-    (tap> [:playback/add-next :instance instance :ol.vinyl/command cmd :tracks tracks :prev-queue prev-queue])
     (when (seq tracks)
       (let [new-queue (queue/add-next prev-queue tracks)]
         (set-queue instance new-queue)

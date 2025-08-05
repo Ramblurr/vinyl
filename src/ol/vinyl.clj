@@ -102,7 +102,6 @@
    (let [command-map (if (map? command)
                        command
                        {:ol.vinyl/command command})]
-     (tap> [:command-map command-map (map? command)])
      (bus/dispatch-command! player command-map))))
 
 (def porcelain-commands
