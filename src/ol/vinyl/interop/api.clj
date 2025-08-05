@@ -17,11 +17,11 @@
 ;; uk.co.caprica.vlcj.player.base.MediaApi
 
 (defmethod cmd/dispatch :vlcj.media-api/play
-  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player :as instance} {:keys [mrl-or-media-ref options] :as e}]
-  (cmd/ensure-valid! e)
+  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player :as instance} {:keys [mrl-or-media-ref options] :as cmd}]
+  (cmd/ensure-valid! cmd)
   (let [^MediaApi media-api (.media media-player)
         ^String/1 options (when options (into-array String options))]
-    (tap> [:vlcj.media-api/play :instance instance :event e])
+    (tap> [:vlcj.media-api/play :instance instance :ol.vinyl/command cmd])
     (if (string? mrl-or-media-ref)
       (.play media-api ^String mrl-or-media-ref options)
       (let [^MediaRef media-ref mrl-or-media-ref]
@@ -31,14 +31,14 @@
             (.release media-ref)))))))
 
 (defmethod cmd/dispatch :vlcj.media-api/reset
-  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} e]
-  (cmd/ensure-valid! e)
+  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} cmd]
+  (cmd/ensure-valid! cmd)
   (let [^MediaApi media-api (.media media-player)]
     (.reset media-api)))
 
 (defmethod cmd/dispatch :vlcj.media-api/prepare
-  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} {:keys [mrl-or-media-ref options] :as e}]
-  (cmd/ensure-valid! e)
+  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} {:keys [mrl-or-media-ref options] :as cmd}]
+  (cmd/ensure-valid! cmd)
   (let [^MediaApi media-api (.media media-player)
         ^String/1 options (when options (into-array String options))]
     (if (string? mrl-or-media-ref)
@@ -53,49 +53,49 @@
 ;; uk.co.caprica.vlcj.player.base.ControlsApi
 
 (defmethod cmd/dispatch :vlcj.controls-api/play
-  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} e]
-  (cmd/ensure-valid! e)
+  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} cmd]
+  (cmd/ensure-valid! cmd)
   (-> media-player .controls .play))
 
 (defmethod cmd/dispatch :vlcj.controls-api/pause
-  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} e]
-  (cmd/ensure-valid! e)
+  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} cmd]
+  (cmd/ensure-valid! cmd)
   (-> media-player .controls .pause))
 
 (defmethod cmd/dispatch :vlc.controlsj-api/set-pause
-  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} e]
-  (cmd/ensure-valid! e)
-  (-> media-player .controls (.setPause (:paused? e))))
+  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} cmd]
+  (cmd/ensure-valid! cmd)
+  (-> media-player .controls (.setPause (:paused? cmd))))
 
 (defmethod cmd/dispatch :vlcj.controls-api/stop
-  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} e]
-  (cmd/ensure-valid! e)
+  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} cmd]
+  (cmd/ensure-valid! cmd)
   (-> media-player .controls .stop))
 
 (defmethod cmd/dispatch :vlc.controlsj-api/skip-time
-  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} e]
-  (cmd/ensure-valid! e)
-  (-> media-player .controls (.skipTime (:delta-ms e))))
+  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} cmd]
+  (cmd/ensure-valid! cmd)
+  (-> media-player .controls (.skipTime (:delta-ms cmd))))
 
 (defmethod cmd/dispatch :vlcj.controls-api/skip-position
-  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} e]
-  (cmd/ensure-valid! e)
-  (-> media-player .controls (.skipPosition (:delta e))))
+  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} cmd]
+  (cmd/ensure-valid! cmd)
+  (-> media-player .controls (.skipPosition (:delta cmd))))
 
 (defmethod cmd/dispatch :vlcj.controls-api/set-time
-  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} e]
-  (cmd/ensure-valid! e)
-  (-> media-player .controls (.setTime (:time-ms e))))
+  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} cmd]
+  (cmd/ensure-valid! cmd)
+  (-> media-player .controls (.setTime (:time-ms cmd))))
 
 (defmethod cmd/dispatch :vlcj.controls-api/set-position
-  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} e]
-  (cmd/ensure-valid! e)
-  (-> media-player .controls (.setPosition (:position-ms e))))
+  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} cmd]
+  (cmd/ensure-valid! cmd)
+  (-> media-player .controls (.setPosition (:position-ms cmd))))
 
 (defmethod cmd/dispatch :vlcj.controls-api/set-repeat
-  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} e]
-  (cmd/ensure-valid! e)
-  (-> media-player .controls (.setRepeat (:repeat? e))))
+  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} cmd]
+  (cmd/ensure-valid! cmd)
+  (-> media-player .controls (.setRepeat (:repeat? cmd))))
 
 ;; --- Controls Query API ---
 
@@ -107,44 +107,44 @@
 ;; uk.co.caprica.vlcj.player.base.AudioApi
 
 (defmethod cmd/dispatch :vlcj.audio-api/mute
-  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} e]
-  (cmd/ensure-valid! e)
+  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} cmd]
+  (cmd/ensure-valid! cmd)
   (-> media-player .audio .mute))
 
 (defmethod cmd/dispatch :vlcj.audio-api/set-mute
-  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} e]
-  (cmd/ensure-valid! e)
-  (-> media-player .audio (.setMute (:muted? e))))
+  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} cmd]
+  (cmd/ensure-valid! cmd)
+  (-> media-player .audio (.setMute (:muted? cmd))))
 
 (defmethod cmd/dispatch :vlcj.audio-api/set-volume
-  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} e]
-  (cmd/ensure-valid! e)
-  (-> media-player .audio (.setVolume (:level e))))
+  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} cmd]
+  (cmd/ensure-valid! cmd)
+  (-> media-player .audio (.setVolume (:level cmd))))
 
 (defmethod cmd/dispatch :vlcj.audio-api/set-channel
-  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} e]
-  (cmd/ensure-valid! e)
-  (let [channel-enum ((:kw->enum audio-channel-converters) (:channel e))]
+  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} cmd]
+  (cmd/ensure-valid! cmd)
+  (let [channel-enum ((:kw->enum audio-channel-converters) (:channel cmd))]
     (-> media-player .audio (.setChannel channel-enum))))
 
 (defmethod cmd/dispatch :vlcj.audio-api/set-delay
-  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} e]
-  (cmd/ensure-valid! e)
-  (-> media-player .audio (.setDelay (:delay e))))
+  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} cmd]
+  (cmd/ensure-valid! cmd)
+  (-> media-player .audio (.setDelay (:delay cmd))))
 
 (defmethod cmd/dispatch :vlcj.audio-api/set-equalizer
-  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} e]
-  (cmd/ensure-valid! e)
-  (-> media-player .audio (.setEqualizer (:equalizer e))))
+  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} cmd]
+  (cmd/ensure-valid! cmd)
+  (-> media-player .audio (.setEqualizer (:equalizer cmd))))
 
 (defmethod cmd/dispatch :vlcj.audio-api/set-output
-  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} e]
-  (cmd/ensure-valid! e)
-  (-> media-player .audio (.setOutput (:output e))))
+  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} cmd]
+  (cmd/ensure-valid! cmd)
+  (-> media-player .audio (.setOutput (:output cmd))))
 (defmethod cmd/dispatch :vlcj.audio-api/set-output-device
-  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} e]
-  (cmd/ensure-valid! e)
-  (-> media-player .audio (.setOutputDevice (:output e) (:output-device-id e))))
+  [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} cmd]
+  (cmd/ensure-valid! cmd)
+  (-> media-player .audio (.setOutputDevice (:output cmd) (:output-device-id cmd))))
 
 ;; --- AudioApi Query API ---
 

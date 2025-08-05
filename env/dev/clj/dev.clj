@@ -49,31 +49,31 @@
     (def mp (mp/create-player {:media-player-factory _fac})))
   (mp/release-player! mp)
 
-  (mp/dispatch mp {:event :playback/append
+  (mp/dispatch mp {:ol.vinyl/command :playback/append
                    :paths [#_"dir://home/ramblurr/src/sparklestories/media/audiobooks/A.A. Milne/Disc 1 - Introducing Pooh and Piglet/"
                            #_"/home/ramblurr/src/sparklestories/media/audiobooks/Dr. Seuss"
-                           #_"/home/ramblurr/src/sparklestories/media/audiobooks/Else Holmelund Minarik/Little Bear/02 What Will Little Bear Wear.mp3"
+                           "/home/ramblurr/src/sparklestories/media/audiobooks/Else Holmelund Minarik/Little Bear/02 What Will Little Bear Wear.mp3"
                            #_"/home/ramblurr/src/sparklestories/media/playlists/SoManyFairies-Fall1.m3u"
-                           "/home/ramblurr/src/sparklestories/media/playlists/SoManyFairies-Fall2.m3u"
+                           #_"/home/ramblurr/src/sparklestories/media/playlists/SoManyFairies-Fall2.m3u"
                            #_"/home/ramblurr/src/sparklestories/media/audiobooks/A.A. Milne/Disc 1 - Introducing Pooh and Piglet/Story 1 - In which we are introduced.mp3"]})
 
-  (mp/dispatch mp {:event :playback/add-next
+  (mp/dispatch mp {:ol.vinyl/command :playback/add-next
                    :paths ["/home/ramblurr/src/sparklestories/media/audiobooks/Else Holmelund Minarik/Little Bear/02 What Will Little Bear Wear.mp3"]})
 
-  (mp/dispatch mp {:event :playback/clear-all})
-  (mp/dispatch mp {:event :playback/play})
-  (mp/dispatch mp {:event :playback/advance})
-  (mp/dispatch mp {:event :playback/stop})
-  (mp/dispatch mp {:event :playback/pause})
-  (mp/dispatch mp {:event :playback/next-track})
-  (mp/dispatch mp {:event :playback/previous-track})
-  (mp/dispatch mp {:event :playback/set-repeat :mode :none})
-  (mp/dispatch mp {:event :playback/move :from 2 :to 1})
-  (mp/dispatch mp {:event :mixer/set-volume :level 100})
-  (mp/dispatch mp {:event :vlcj.controls-api/pause})
-  (mp/dispatch mp {:event :vlcj.controls-api/play})
-  (mp/dispatch mp {:event :vlcj.controls-api/stop})
-  (mp/dispatch mp {:event :vlcj.media-api/reset})
+  (mp/dispatch mp :playback/clear-all)
+  (mp/dispatch mp :playback/play)
+  (mp/dispatch mp :playback/advance)
+  (mp/dispatch mp :playback/stop)
+  (mp/dispatch mp :playback/pause)
+  (mp/dispatch mp :playback/next-track)
+  (mp/dispatch mp :playback/previous-track)
+  (mp/dispatch mp :playback/set-repeat :mode :none)
+  (mp/dispatch mp :playback/move :from 2 :to 1)
+  (mp/dispatch mp :mixer/set-volume :level 100)
+  (mp/dispatch mp :vlcj.controls-api/pause)
+  (mp/dispatch mp :vlcj.controls-api/play)
+  (mp/dispatch mp :vlcj.controls-api/stop)
+  (mp/dispatch mp :vlcj.media-api/reset)
   (->>
    (mp/list-queue mp)
    :upcoming
