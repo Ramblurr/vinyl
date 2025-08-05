@@ -2,17 +2,16 @@
 ;; SPDX-License-Identifier: EUPL-1.2
 (ns ol.vinyl.interop.parsing
   (:require
-   [ol.vinyl.protocols :as protocols]
    [clojure.core.async :as async :refer [<! >! chan close! go]]
    [ol.vinyl.interop.enum :as enum]
-   [ol.vinyl.interop.listener :as listener])
+   [ol.vinyl.interop.listener :as listener]
+   [ol.vinyl.protocols :as protocols])
   (:import
    [uk.co.caprica.vlcj.factory MediaPlayerFactory]
    [uk.co.caprica.vlcj.media
     AudioTrackInfo
     Media
     MediaParsedStatus
-    MediaType
     MetaData
     ParseFlag]))
 

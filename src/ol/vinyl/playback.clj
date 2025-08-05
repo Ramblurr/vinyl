@@ -2,13 +2,13 @@
 ;; SPDX-License-Identifier: EUPL-1.2
 (ns ol.vinyl.playback
   (:require
-   [ol.vinyl.interop.api :as api]
    [ol.vinyl.bus :as bus]
    [ol.vinyl.commands :as cmd]
+   [ol.vinyl.interop.api :as api]
    [ol.vinyl.interop.parsing :as parsing]
    [ol.vinyl.queue :as queue]))
 
-(defn handle-player-event [{:ol.vinyl.impl/keys [state_] :as instance} event]
+(defn handle-player-event [{:ol.vinyl.impl/keys [_state_]} event]
   (when-not (contains? #{:vlc/time-changed :vlc/position-changed} (:ol.vinyl/event event))
     (tap> event)))
 

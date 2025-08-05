@@ -1,12 +1,25 @@
 ;; Copyright © 2025 Casey Link <casey@outskirtslabs.com>
 ;; SPDX-License-Identifier: EUPL-1.2
 (ns ol.vinyl.interop.api
-  (:require [ol.vinyl.commands :as cmd]
-            [ol.vinyl.interop.enum :as enum])
+  (:require
+   [ol.vinyl.commands :as cmd]
+   [ol.vinyl.interop.enum :as enum])
   (:import
-
-   [uk.co.caprica.vlcj.media MediaRef Media MediaType AudioTrackInfo VideoTrackInfo TextTrackInfo TrackType]
-   [uk.co.caprica.vlcj.player.base MediaPlayer Equalizer AudioChannel AudioDevice State MediaApi]))
+   [uk.co.caprica.vlcj.media
+    AudioTrackInfo
+    Media
+    MediaRef
+    MediaType
+    TextTrackInfo
+    TrackType
+    VideoTrackInfo]
+   [uk.co.caprica.vlcj.player.base
+    AudioChannel
+    AudioDevice
+    Equalizer
+    MediaApi
+    MediaPlayer
+    State]))
 
 (def audio-channel-converters (enum/create-enum-converters AudioChannel))
 (def media-type-converters (enum/create-enum-converters MediaType))

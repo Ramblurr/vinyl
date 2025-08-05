@@ -1,4 +1,5 @@
-{:lint-as      {com.fulcrologic.statecharts.chart/with-working-memory clojure.core/let
+{:skip-comments true
+ :lint-as      {com.fulcrologic.statecharts.chart/with-working-memory clojure.core/let
                 com.fulcrologic.statecharts.elements/script-fn                clojure.core/fn
                 com.fulcrologic.statecharts.elements/exit-fn                clojure.core/fn
                 com.fulcrologic.statecharts.elements/entry-fn                clojure.core/fn

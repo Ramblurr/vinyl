@@ -2,7 +2,7 @@
 ;; SPDX-License-Identifier: EUPL-1.2
 (ns ol.vinyl.queue-test
   (:require
-   [clojure.test :refer [deftest testing is are]]
+   [clojure.test :refer [are deftest is testing]]
    [ol.vinyl.queue :as q]))
 
 (defn track [id]

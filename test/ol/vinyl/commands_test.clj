@@ -1,8 +1,8 @@
 (ns ol.vinyl.commands-test
   (:require
-   [clojure.test :refer [deftest testing is are]]
-   [ol.vinyl.commands :as sut]
-   [malli.core :as m]))
+   [clojure.test :refer [are deftest is testing]]
+   [malli.core :as m]
+   [ol.vinyl.commands :as sut]))
 
 (deftest named-command-schema-test
   (testing "returns schema for known commands"

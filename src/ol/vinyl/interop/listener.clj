@@ -2,8 +2,8 @@
 ;; SPDX-License-Identifier: EUPL-1.2
 (ns ol.vinyl.interop.listener
   (:import
-   [uk.co.caprica.vlcj.media MediaEventListener MediaEventAdapter]
-   [uk.co.caprica.vlcj.player.base MediaPlayerEventListener MediaPlayerEventAdapter]))
+   [uk.co.caprica.vlcj.media MediaEventAdapter MediaEventListener]
+   [uk.co.caprica.vlcj.player.base MediaPlayerEventAdapter MediaPlayerEventListener]))
 
 #_(def libvlc4? (= 4 (-> (uk.co.caprica.vlcj.support.version.LibVlcVersion.) .getVersion .major)))
 

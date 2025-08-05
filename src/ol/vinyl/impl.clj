@@ -30,7 +30,7 @@
     (playback/release! instance)
     (reset! state_ :released)))
 
-(defn ensure-not-released! [{::keys [state_] :as i}]
+(defn ensure-not-released! [{::keys [state_] :as _i}]
   (when (= @state_ :released)
     (throw (ex-info "Player has been released and cannot be used anymore." {}))))
 
@@ -136,10 +136,11 @@
       (when-let [current-media (api/get-media player)]
         (try
           {:duration (api/get-duration player)
-           :time (api/get-time player)
-           :mrl (api/get-mrl player)
-           :state (api/get-state player)
-           :meta (parsing/meta-for current-media)}
+           :position (api/get-position player)
+           :time     (api/get-time player)
+           :mrl      (api/get-mrl player)
+           :state    (api/get-state player)
+           :meta     (parsing/meta-for current-media)}
           (finally
             (when current-media
               (.release current-media))))))))

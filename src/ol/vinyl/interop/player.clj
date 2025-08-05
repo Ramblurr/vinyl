@@ -6,7 +6,7 @@
    [ol.vinyl.interop.listener :as listener])
   (:import
    [uk.co.caprica.vlcj.factory MediaPlayerFactory]
-   [uk.co.caprica.vlcj.player.base  MediaPlayer State]))
+   [uk.co.caprica.vlcj.player.base MediaPlayer State]))
 
 #_(defn handler! [ev]
     (try
