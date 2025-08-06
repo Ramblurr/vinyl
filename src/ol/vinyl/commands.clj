@@ -84,7 +84,7 @@
    :vlcj.controls-api/set-time (with-payload "Jump to a specific moment. If the requested time is less than zero, it is normalised to zero."
                                  [:time-ms {:doc "time since the beginning in milliseconds"} :int])
    :vlcj.controls-api/set-position (with-payload "Jump to a specific position in the track. If the requested position is less than zero, it is normalised to zero."
-                                     [:position-ms {:doc "position value, a percentage (e.g. 0.15 is 15%)"} :float])
+                                     [:position {:doc "position value, a percentage between 0 and 1 (e.g. 0.15 is 15%)"} :float])
    :vlcj.controls-api/set-repeat (with-payload "Set whether or not the media player should automatically repeat playing the media when it has finished playing."
                                    [:repeat? {:doc "true to automatically replay the media, otherwise false"} :boolean])})
 

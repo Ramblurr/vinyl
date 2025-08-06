@@ -74,7 +74,7 @@
   (cmd/ensure-valid! cmd)
   (-> media-player .controls .pause))
 
-(defmethod cmd/dispatch :vlc.controlsj-api/set-pause
+(defmethod cmd/dispatch :vlcj.controls-api/set-pause
   [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} cmd]
   (cmd/ensure-valid! cmd)
   (-> media-player .controls (.setPause (:paused? cmd))))
@@ -84,7 +84,7 @@
   (cmd/ensure-valid! cmd)
   (-> media-player .controls .stop))
 
-(defmethod cmd/dispatch :vlc.controlsj-api/skip-time
+(defmethod cmd/dispatch :vlcj.controls-api/skip-time
   [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} cmd]
   (cmd/ensure-valid! cmd)
   (-> media-player .controls (.skipTime (:delta-ms cmd))))
@@ -102,7 +102,7 @@
 (defmethod cmd/dispatch :vlcj.controls-api/set-position
   [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} cmd]
   (cmd/ensure-valid! cmd)
-  (-> media-player .controls (.setPosition (:position-ms cmd))))
+  (-> media-player .controls (.setPosition (:position cmd))))
 
 (defmethod cmd/dispatch :vlcj.controls-api/set-repeat
   [{{:vlc/keys [^MediaPlayer media-player]} :ol.vinyl.impl/player} cmd]
