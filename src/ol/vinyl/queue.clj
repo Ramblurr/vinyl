@@ -184,7 +184,15 @@
   {:history history
    :current current
    :priority priority
-   :normal normal})
+   :normal normal
+   :tracks (->>
+            (concat
+             (map-indexed #(assoc %2 :index (- (- (count history) %1))) history)
+             (when current [(assoc current :index 0)])
+             (map-indexed #(assoc %2 :index (+ 1 %1)) priority)
+             (map-indexed #(assoc %2 :index (+ 1 (count priority) %1)) normal))
+            (remove nil?)
+            (into []))})
 
 (defn append
   "Adds tracks to the end of the normal queue."

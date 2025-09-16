@@ -102,10 +102,7 @@
         tracks (expand-paths instance paths)]
     (when (seq tracks)
       (let [new-queue (queue/append prev-queue tracks)]
-        (set-queue instance new-queue)
-        (when (and (nil? (queue/get-current prev-queue))
-                   (queue/get-current new-queue))
-          (notify-player instance new-queue))))))
+        (set-queue instance new-queue)))))
 
 (defmethod cmd/dispatch :playback/clear-all
   [instance cmd]
@@ -185,10 +182,7 @@
         tracks (expand-paths instance (:paths cmd))]
     (when (seq tracks)
       (let [new-queue (queue/add-next prev-queue tracks)]
-        (set-queue instance new-queue)
-        (when (and (nil? (queue/get-current prev-queue))
-                   (queue/get-current new-queue))
-          (notify-player instance new-queue))))))
+        (set-queue instance new-queue)))))
 
 (defmethod cmd/dispatch :playback/play
   [instance cmd]
@@ -213,6 +207,12 @@
   [instance cmd]
   (cmd/ensure-valid! cmd)
   (bus/dispatch-command! instance {:ol.vinyl/command :vlcj.controls-api/stop}))
+
+(defmethod cmd/dispatch :playback/play-from
+  [instance cmd]
+  (cmd/ensure-valid! cmd)
+  (tap> [:play-from cmd (queue/play-from (queue instance) (:index cmd))])
+  (set-queue instance (queue/play-from (queue instance) (:index cmd))))
 
 (defn handle-player-event [i event]
   (let [q (queue i)]

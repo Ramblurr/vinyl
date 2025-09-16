@@ -186,6 +186,18 @@
       (is (= queue result)))))
 
 (deftest play-from-test
+  (testing "play from future index - normal"
+    (let [queue {:history []
+                 :current (track "a")
+                 :normal [(track "b") (track "c")]
+                 :priority []
+                 :shuffle? false
+                 :repeat :none}
+          result (q/play-from queue 1)]
+      (is (= "b" (:id (:current result))))
+      (is (= ["a"] (map :id (:history result))))
+      (is (= [(track "c")] (:normal result)))
+      (is (= [] (:priority result)))))
   (testing "play from future index"
     (let [queue {:history []
                  :current (track "a")
