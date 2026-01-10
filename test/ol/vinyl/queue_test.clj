@@ -70,12 +70,17 @@
     (let [queue {:history [(track "a")]
                  :current (track "b")
                  :priority [(track "c")]
-                 :normal [(track "d")]}]
-      (is (= {:history [(track "a")]
-              :current (track "b")
-              :priority [(track "c")]
-              :normal [(track "d")]}
-             (q/list-all queue))))))
+                 :normal [(track "d")]}
+          result (q/list-all queue)]
+      (is (= [(track "a")] (:history result)))
+      (is (= (track "b") (:current result)))
+      (is (= [(track "c")] (:priority result)))
+      (is (= [(track "d")] (:normal result)))
+      (is (= [{:id "a" :mrl "file:///a.mp3" :index -1}
+              {:id "b" :mrl "file:///b.mp3" :index 0}
+              {:id "c" :mrl "file:///c.mp3" :index 1}
+              {:id "d" :mrl "file:///d.mp3" :index 2}]
+             (:tracks result))))))
 
 (deftest append-test
   (testing "adds to normal queue"
