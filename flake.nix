@@ -1,43 +1,42 @@
 {
-  description = "";
+  description = "dev env";
   inputs = {
     nixpkgs.url = "https://flakehub.com/f/NixOS/nixpkgs/0.1"; # tracks nixpkgs unstable branch
-    flakelight.url = "github:nix-community/flakelight";
-    flakelight.inputs.nixpkgs.follows = "nixpkgs";
+    devshell.url = "github:numtide/devshell";
+    devenv.url = "https://flakehub.com/f/ramblurr/nix-devenv/*";
   };
   outputs =
-    {
+    inputs@{
       self,
-      flakelight,
+      devenv,
+      devshell,
       ...
     }:
-    flakelight ./. {
+    devenv.lib.mkFlake ./. {
+      inherit inputs;
+      withOverlays = [
+        devshell.overlays.default
+        devenv.overlays.default
+      ];
       devShell =
         pkgs:
-        let
-          javaVersion = "21";
-          jdk = pkgs."jdk${javaVersion}";
-          clojure = pkgs.clojure.override { inherit jdk; };
-          libraries = [ pkgs.vlc ];
-        in
-        {
-          packages = [
-            clojure
-            jdk
-            pkgs.clojure-lsp
-            pkgs.clj-kondo
-            pkgs.cljfmt
-            pkgs.babashka
-            pkgs.git
-            pkgs.vlc
+        pkgs.devshell.mkShell {
+          imports = [
+            devenv.capsules.base
+            devenv.capsules.clojure
           ];
-          env.LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath libraries;
-        };
 
-      flakelight.builtinFormatters = false;
-      formatters = pkgs: {
-        "*.nix" = "${pkgs.nixfmt}/bin/nixfmt";
-        "*.clj" = "${pkgs.cljfmt}/bin/cljfmt fix";
-      };
+          commands = [
+            { package = pkgs.vlc; }
+          ];
+
+          env = [
+            {
+              name = "LD_LIBRARY_PATH";
+              value = pkgs.lib.makeLibraryPath [ pkgs.vlc ];
+            }
+          ];
+
+        };
     };
 }
