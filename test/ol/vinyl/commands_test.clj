@@ -56,7 +56,7 @@
     (is (sut/validate-command {:ol.vinyl/command :vlcj.controls-api/set-time
                                :time-ms 5000}))
     (is (sut/validate-command {:ol.vinyl/command :vlcj.controls-api/set-position
-                               :position-ms 0.5}))
+                               :position 0.5}))
     (is (sut/validate-command {:ol.vinyl/command :vlcj.audio-api/set-channel
                                :channel :audio-channel/left}))
     (is (sut/validate-command {:ol.vinyl/command :playback/move
