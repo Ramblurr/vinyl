@@ -10,8 +10,8 @@
                                   "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED"]}
            :kaocha {:extra-deps {lambdaisland/kaocha {:mvn/version "1.91.1392"}}
                     :main-opts  ["-m" "kaocha.runner"]}
-           :build  {:deps       {io.github.clojure/tools.build {:mvn/version "0.10.13"}
-                                 slipset/deps-deploy           {:mvn/version "0.2.2"}}
+           :build  {:deps       {io.github.clojure/tools.build {:mvn/version "0.10.14"}
+                                 slipset/deps-deploy           {:mvn/version "0.2.5"}}
                     :ns-default build}
            :neil   {:project {:name        io.github.ramblurr/vinyl
                               :url         "https://github.com/ramblurr/vinyl"
