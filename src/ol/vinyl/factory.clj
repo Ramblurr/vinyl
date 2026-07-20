@@ -16,5 +16,5 @@
 
 (defn deinit! []
   (when singleton
-    (.release singleton)
+    (.release ^MediaPlayerFactory singleton)
     (alter-var-root #'singleton (constantly nil))))

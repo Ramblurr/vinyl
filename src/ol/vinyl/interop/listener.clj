@@ -2,8 +2,8 @@
 ;; SPDX-License-Identifier: EUPL-1.2
 (ns ol.vinyl.interop.listener
   (:import
-   [uk.co.caprica.vlcj.media MediaEventAdapter MediaEventListener]
-   [uk.co.caprica.vlcj.player.base MediaPlayerEventAdapter MediaPlayerEventListener]))
+   [uk.co.caprica.vlcj.media Media MediaEventAdapter MediaEventListener]
+   [uk.co.caprica.vlcj.player.base MediaPlayer MediaPlayerEventAdapter MediaPlayerEventListener]))
 
 #_(def libvlc4? (= 4 (-> (uk.co.caprica.vlcj.support.version.LibVlcVersion.) .getVersion .major)))
 
@@ -101,7 +101,7 @@
 
 (defn parse-event-listener ^MediaEventAdapter [callback]
   (proxy [MediaEventAdapter] []
-    (mediaParsedChanged [media newStatus]
+    (mediaParsedChanged [^Media media newStatus]
       (try
         (callback media newStatus)
         (finally
@@ -109,7 +109,7 @@
 
 (defn wait-for-stop-listener ^MediaPlayerEventAdapter [callback]
   (proxy [MediaPlayerEventAdapter] []
-    (stopped [mp]
+    (stopped [^MediaPlayer mp]
       (.submit mp (fn []
                     (-> mp (.events) (.removeMediaEventListener this))
                     (callback))))))

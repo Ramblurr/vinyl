@@ -19,13 +19,13 @@
   "Create a new Media object for every item in paths.  Returns a vector of Medias."
   [^MediaPlayerFactory factory paths]
   (->> paths
-       (map (fn [path]
+       (map (fn [^String path]
               (-> factory (.media) (.newMedia path nil))))))
 
 (defn release-medias!
   "Release all the Medias in medias."
   [medias]
-  (doseq [media medias]
+  (doseq [^Media media medias]
     (when media
       (doto media (.release)))))
 
@@ -176,7 +176,7 @@
            :as _opts}]
    (if (seq paths)
      (let [own-factory? (nil? media-player-factory)
-           factory (or media-player-factory (MediaPlayerFactory.))
+           ^MediaPlayerFactory factory (or media-player-factory (MediaPlayerFactory.))
            mrls (map protocols/mrl paths)
            medias (make-medias! factory mrls)
            parse-flags (into-array ParseFlag (map (:kw->enum enum-parse-flag) parse-flags))
@@ -246,8 +246,8 @@
   ([paths opts]
    (let [result (promise)
          status-converter (or (:enum->kw enum-media-parsed-status)
-                              (fn [status] (keyword "parse-status"
-                                                    (.toLowerCase (.name status)))))]
+                              (fn [^MediaParsedStatus status] (keyword "parse-status"
+                                                                       (.toLowerCase (.name status)))))]
      (future
        (try
          (let [media-results (deref (parse-medias-recursive paths opts))]

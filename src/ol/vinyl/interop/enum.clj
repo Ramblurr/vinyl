@@ -9,9 +9,9 @@
    Optionally provide a custom namespace, otherwise uses the enum's simple class name."
   ([enum-value]
    (enum->keyword enum-value nil))
-  ([enum-value ns-override]
+  ([^Enum enum-value ns-override]
    (when enum-value
-     (let [enum-class (.getDeclaringClass enum-value)
+     (let [^Class enum-class (.getDeclaringClass enum-value)
            ns-name (or ns-override
                        (-> (.getSimpleName enum-class)
                            csk/->kebab-case))] ; Remove leading dash
@@ -33,8 +33,8 @@
 (defn create-enum-converters
   "Create a set of converter functions for a specific enum type.
    Returns a map with :enum->kw, :kw->enum, :int->kw, :kw->int functions."
-  [enum-class & {:keys [namespace int-method]
-                 :or {int-method "intValue"}}]
+  [^Class enum-class & {:keys [namespace int-method]
+                        :or {int-method "intValue"}}]
   (let [ns-name (or namespace
                     (-> (.getSimpleName enum-class)
                         csk/->kebab-case))
