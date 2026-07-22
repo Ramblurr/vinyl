@@ -104,9 +104,18 @@
     (mediaParsedChanged [^Media media newStatus]
       (callback media newStatus))))
 
+(defn- submit-to-media-player! [^MediaPlayer media-player task]
+  (.submit media-player ^Runnable task))
+
+(defn- remove-media-player-listener!
+  [^MediaPlayer media-player ^MediaPlayerEventListener event-listener]
+  (.removeMediaPlayerEventListener (.events media-player) event-listener))
+
 (defn wait-for-stop-listener ^MediaPlayerEventAdapter [callback]
   (proxy [MediaPlayerEventAdapter] []
-    (stopped [^MediaPlayer mp]
-      (.submit mp (fn []
-                    (-> mp (.events) (.removeMediaEventListener this))
-                    (callback))))))
+    (stopped [^MediaPlayer media-player]
+      (submit-to-media-player!
+       media-player
+       (fn []
+         (remove-media-player-listener! media-player this)
+         (callback))))))
