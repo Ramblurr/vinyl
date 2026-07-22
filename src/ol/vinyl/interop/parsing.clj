@@ -529,3 +529,92 @@
        (enqueue!
         #(execute-request! paths opts metadata-results! true)))
      (delivered-promise []))))
+
+(comment
+  (def example-media-path
+    "/home/ramblurr/src/sparklestories/media/audiobooks/Dr. Seuss/The Cat in the Hat Songbook")
+
+  ;; Parse recursively into plain, eagerly realized Clojure data.
+  (let [result (deref (parse-meta [example-media-path] {:timeout-ms 10000})
+                      60000
+                      ::timeout)]
+    (cond
+      (= ::timeout result)
+      :parse-timed-out
+
+      (instance? Throwable result)
+      (throw result)
+
+      :else
+      {:count (count result)
+       :first-track (first result)
+       :statuses (frequencies (map :parse-status result))}))
+
+  ;; Inspect raw vlcj Media wrappers. This API transfers ownership to the caller,
+  ;; so every returned Media must be released after its data has been realized.
+  (let [result (deref (parse-medias-recursive [example-media-path]
+                                              {:timeout-ms 10000})
+                      60000
+                      ::timeout)]
+    (cond
+      (= ::timeout result)
+      :parse-timed-out
+
+      (instance? Throwable result)
+      (throw result)
+
+      :else
+      (try
+        (mapv (fn [{:keys [error media parse-status]}]
+                (cond-> (media->info media)
+                  parse-status (assoc :parse-status
+                                      ((:enum->kw enum-media-parsed-status)
+                                       parse-status))
+                  error (assoc :error error)))
+              result)
+        (finally
+          (release-medias! (mapv :media result))))))
+
+  ;; A supplied factory remains caller-owned.
+  (let [factory (MediaPlayerFactory.)]
+    (try
+      (let [result @(parse-meta [example-media-path]
+                                {:media-player-factory factory
+                                 :timeout-ms 10000})]
+        (if (instance? Throwable result)
+          (throw result)
+          (count result)))
+      (finally
+        (.release factory))))
+
+  ;; Concurrent callers keep the same promise API, while the internal executor
+  ;; serializes their native parsing work.
+  (let [first-result (parse-meta [example-media-path] {:timeout-ms 10000})
+        second-result (parse-meta [example-media-path] {:timeout-ms 10000})]
+    (mapv (fn [result]
+            (let [value (deref result 60000 ::timeout)]
+              (cond
+                (= ::timeout value) :parse-timed-out
+                (instance? Throwable value) (throw value)
+                :else (count value))))
+          [first-result second-result]))
+
+  ;; Reproduce the production GC pressure while retaining a bounded wait.
+  (let [result (parse-meta [example-media-path] {:timeout-ms 10000})
+        pressure (future
+                   (dotimes [_ 200]
+                     (when-not (realized? result)
+                       (System/gc)
+                       (dotimes [_ 10]
+                         (byte-array (* 1024 1024)))
+                       (Thread/sleep 5))))
+        value (deref result 60000 ::timeout)]
+    @pressure
+    (cond
+      (= ::timeout value) :parse-timed-out
+      (instance? Throwable value) (throw value)
+      :else {:count (count value)
+             :statuses (frequencies (map :parse-status value))}))
+
+  (:kw->enum-map enum-parse-flag)
+  (:enum->kw-map enum-media-parsed-status))
