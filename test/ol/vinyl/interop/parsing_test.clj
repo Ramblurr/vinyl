@@ -786,3 +786,32 @@
               :media-collected? media-collected?
               :reachable-while-active? reachable-while-active?
               :result (normalize-result parsed-result)})))))
+
+(deftest release-medias-attempts-every-release-before-throwing-test
+  (if-let [release-media-var
+           (ns-resolve 'ol.vinyl.interop.parsing 'release-media!)]
+    (let [events_ (atom [])
+          first-error (ex-info "First release failed." {})
+          last-error (ex-info "Last release failed." {})
+          thrown
+          (with-redefs-fn
+            {release-media-var
+             (fn [media]
+               (swap! events_ conj media)
+               (case media
+                 :first (throw first-error)
+                 :last (throw last-error)
+                 nil))}
+            (fn []
+              (try
+                (parsing/release-medias! [:first nil :middle :last])
+                nil
+                (catch Throwable t
+                  t))))]
+      (is (= {:attempted [:first :middle :last]
+              :first-error? true
+              :suppressed [last-error]}
+             {:attempted @events_
+              :first-error? (identical? first-error thrown)
+              :suppressed (vec (.getSuppressed ^Throwable thrown))})))
+    (is false "The releasable-media boundary is not implemented.")))

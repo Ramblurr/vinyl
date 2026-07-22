@@ -48,12 +48,30 @@
           (recur (next remaining) (conj medias (second outcome)))))
       medias)))
 
+(defn- release-media! [^Media media]
+  (.release media))
+
+(defn- apply-to-all! [operation values]
+  (let [errors (into []
+                     (keep (fn [value]
+                             (try
+                               (operation value)
+                               nil
+                               (catch Throwable t
+                                 t))))
+                     values)]
+    (when-let [^Throwable error (first errors)]
+      (doseq [^Throwable suppressed (rest errors)]
+        (when-not (identical? error suppressed)
+          (.addSuppressed error suppressed)))
+      (throw error))))
+
 (defn release-medias!
-  "Releases every non-nil vlcj `Media` wrapper in `medias`."
+  "Releases every non-nil vlcj `Media` wrapper in `medias`.
+
+  Every release is attempted before the first release error is rethrown."
   [medias]
-  (doseq [^Media media medias]
-    (when media
-      (.release media))))
+  (apply-to-all! release-media! (remove nil? medias)))
 
 (defn metadata->map [^MetaData metadata]
   (reduce (fn [result [metadata-type value]]
