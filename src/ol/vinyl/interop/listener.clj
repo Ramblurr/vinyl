@@ -111,6 +111,13 @@
   [^MediaPlayer media-player ^MediaPlayerEventListener event-listener]
   (.removeMediaPlayerEventListener (.events media-player) event-listener))
 
+(defn stop-completion-listener
+  "Creates a listener whose stopped callback only publishes completion."
+  ^MediaPlayerEventAdapter [callback]
+  (proxy [MediaPlayerEventAdapter] []
+    (stopped [^MediaPlayer _media-player]
+      (callback))))
+
 (defn wait-for-stop-listener ^MediaPlayerEventAdapter [callback]
   (proxy [MediaPlayerEventAdapter] []
     (stopped [^MediaPlayer media-player]

@@ -28,3 +28,13 @@
               (is (= [:submitted [:removed event-listener] :callback]
                      @events_))))))
       (is false "The media-player listener boundary is not implemented."))))
+
+(deftest stop-completion-listener-only-publishes-completion-test
+  (if-let [listener-var
+           (ns-resolve 'ol.vinyl.interop.listener 'stop-completion-listener)]
+    (let [events_ (atom [])
+          ^MediaPlayerEventAdapter event-listener
+          (listener-var #(swap! events_ conj :completed))]
+      (.stopped event-listener nil)
+      (is (= [:completed] @events_)))
+    (is false "The one-shot stop completion listener is not implemented.")))
