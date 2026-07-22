@@ -102,10 +102,7 @@
 (defn parse-event-listener ^MediaEventAdapter [callback]
   (proxy [MediaEventAdapter] []
     (mediaParsedChanged [^Media media newStatus]
-      (try
-        (callback media newStatus)
-        (finally
-          (-> media (.events) (.removeMediaEventListener this)))))))
+      (callback media newStatus))))
 
 (defn wait-for-stop-listener ^MediaPlayerEventAdapter [callback]
   (proxy [MediaPlayerEventAdapter] []

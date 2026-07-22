@@ -2,54 +2,64 @@
 ;; SPDX-License-Identifier: EUPL-1.2
 (ns ol.vinyl.interop.parsing
   (:require
-   [clojure.core.async :as async :refer [<! >! chan close! go]]
    [ol.vinyl.interop.enum :as enum]
    [ol.vinyl.interop.listener :as listener]
    [ol.vinyl.protocols :as protocols])
   (:import
+   [java.util.concurrent
+    CompletableFuture
+    ExecutionException
+    ExecutorService
+    Executors
+    ThreadFactory
+    TimeUnit
+    TimeoutException]
    [uk.co.caprica.vlcj.factory MediaPlayerFactory]
    [uk.co.caprica.vlcj.media
     AudioTrackInfo
     Media
+    MediaEventListener
     MediaParsedStatus
     MetaData
-    ParseFlag]))
+    ParseFlag]
+   [uk.co.caprica.vlcj.medialist MediaList]))
 
 (defn make-medias!
-  "Create a new Media object for every item in paths.  Returns a vector of Medias."
+  "Creates one owned vlcj `Media` wrapper for each path.
+
+  The returned vector is fully realized. The caller owns every wrapper."
   [^MediaPlayerFactory factory paths]
-  (->> paths
-       (map (fn [^String path]
-              (-> factory (.media) (.newMedia path nil))))))
+  (loop [remaining (seq paths)
+         medias []]
+    (if-let [^String path (first remaining)]
+      (let [outcome (try
+                      [:ok (.newMedia (.media factory) path nil)]
+                      (catch Throwable t
+                        [:error t]))]
+        (if (= :error (first outcome))
+          (let [^Throwable error (second outcome)]
+            (doseq [^Media media medias]
+              (try
+                (.release media)
+                (catch Throwable release-error
+                  (when-not (identical? error release-error)
+                    (.addSuppressed error release-error)))))
+            (throw error))
+          (recur (next remaining) (conj medias (second outcome)))))
+      medias)))
 
 (defn release-medias!
-  "Release all the Medias in medias."
+  "Releases every non-nil vlcj `Media` wrapper in `medias`."
   [medias]
   (doseq [^Media media medias]
     (when media
-      (doto media (.release)))))
-
-#_(-> "dir:///home/ramblurr/src/sparklestories/media/audiobooks/A.A. Milne/Disc 1 - Introducing Pooh and Piglet/"
-      (.replaceAll "^dir://" "")
-      (Paths/get (into-array String []))
-      .toAbsolutePath
-      .toFile
-      .isDirectory)
-#_(-> "dir:///home/ramblurr/src/sparklestories/media/audiobooks/A.A. Milne/Disc 1 - Introducing Pooh and Piglet/"
-      (.replaceAll "^dir://" "")
-      (Paths/get (into-array String []))
-      .toAbsolutePath
-      .toUri
-      str)
-#_(->
-   (Paths/get "dir:///home/ramblurr/src/sparklestories/media/audiobooks/A.A. Milne/Disc 1 - Introducing Pooh and Piglet/" (into-array String []))
-   .toFile
-   .exists)
+      (.release media))))
 
 (defn metadata->map [^MetaData metadata]
-  (->> (.values metadata)
-       (reduce (fn [acc [k v]]
-                 (assoc acc (enum/enum->keyword k) v)) {})))
+  (reduce (fn [result [metadata-type value]]
+            (assoc result (enum/enum->keyword metadata-type) value))
+          {}
+          (.values metadata)))
 
 (defn audio-track->info [^AudioTrackInfo track]
   {:channels (.channels track)
@@ -66,236 +76,456 @@
 
 (defn media->info [^Media media]
   (protocols/map->Track
-   {:mrl (-> media (.info) (.mrl))
-    :meta (-> media (.meta) (.asMetaData) metadata->map)
-    :duration (-> media (.info) (.duration))
-    :audio-tracks (map audio-track->info (-> media (.info) (.audioTracks)))
-    :media-type (-> media (.info) (.type) enum/enum->keyword)}))
+   {:mrl (.mrl (.info media))
+    :meta (metadata->map (.asMetaData (.meta media)))
+    :duration (.duration (.info media))
+    :audio-tracks (mapv audio-track->info (.audioTracks (.info media)))
+    :media-type (enum/enum->keyword (.type (.info media)))}))
 
 (defn meta-for [^Media media]
-  (some-> media (.meta) (.asMetaData) metadata->map))
+  (some-> media .meta .asMetaData metadata->map))
 
-(def enum-parse-flag  (enum/create-enum-converters ParseFlag))
-(def enum-media-parsed-status (enum/create-enum-converters MediaParsedStatus))
+(def enum-parse-flag (enum/create-enum-converters ParseFlag))
+(def enum-media-parsed-status
+  (enum/create-enum-converters MediaParsedStatus))
 
-(:kw->enum-map enum-parse-flag)
-;; => #:parse-flag{:parse-local #object[uk.co.caprica.vlcj.media.ParseFlag 0x2423d9d9 "PARSE_LOCAL"], :parse-network #object[uk.co.caprica.vlcj.media.ParseFlag 0x2ef9df7f "PARSE_NETWORK"], :fetch-local #object[uk.co.caprica.vlcj.media.ParseFlag 0x7352e176 "FETCH_LOCAL"], :fetch-network #object[uk.co.caprica.vlcj.media.ParseFlag 0x208b4087 "FETCH_NETWORK"], :do-interact #object[uk.co.caprica.vlcj.media.ParseFlag 0x1adca85e "DO_INTERACT"]}
+(def ^:private native-runtime
+  {:new-factory! (fn [] (MediaPlayerFactory.))
+   :release-factory! (fn [^MediaPlayerFactory factory]
+                       (.release factory))
+   :parse-flags (fn [parse-flags]
+                  (into-array ParseFlag
+                              (map (:kw->enum enum-parse-flag) parse-flags)))
+   :new-media! (fn [^MediaPlayerFactory factory ^String mrl]
+                 (.newMedia (.media factory) mrl nil))
+   :release-media! (fn [^Media media]
+                     (.release media))
+   :new-listener listener/parse-event-listener
+   :add-listener! (fn [^Media media ^MediaEventListener event-listener]
+                    (.addMediaEventListener (.events media) event-listener))
+   :remove-listener! (fn [^Media media ^MediaEventListener event-listener]
+                       (.removeMediaEventListener (.events media)
+                                                  event-listener))
+   :start-parse! (fn [^Media media timeout-ms parse-flags]
+                   (.parse (.parsing media) (int timeout-ms) parse-flags))
+   :stop-parse! (fn [^Media media]
+                  (.stop (.parsing media)))
+   :new-media-list! (fn [^Media media]
+                      (.newMediaList (.subitems media)))
+   :media-list-size (fn [^MediaList media-list]
+                      (.count (.media media-list)))
+   :new-list-media! (fn [^MediaList media-list index]
+                      (.newMedia (.media media-list) (int index)))
+   :release-media-list! (fn [^MediaList media-list]
+                          (.release media-list))
+   :media-info media->info})
+
+(def ^:private parser-thread-factory
+  (reify ThreadFactory
+    (newThread [_ runnable]
+      (doto (Thread. ^Runnable runnable "vinyl-metadata-parser")
+        (.setDaemon true)))))
+
+(defonce ^:private ^ExecutorService parser-executor
+  (Executors/newSingleThreadExecutor parser-thread-factory))
+
+(defn- delivered-promise [value]
+  (doto (promise) (deliver value)))
+
+(defn- enqueue! [work]
+  (let [result (promise)]
+    (try
+      (.execute parser-executor
+                ^Runnable
+                (fn []
+                  (deliver result
+                           (try
+                             (work)
+                             (catch Throwable t
+                               t)))))
+      (catch Throwable t
+        (deliver result t)))
+    result))
+
+(defn- combine-errors [errors]
+  (when-let [^Throwable error (first (remove nil? errors))]
+    (doseq [^Throwable suppressed (rest (remove nil? errors))]
+      (when-not (identical? error suppressed)
+        (.addSuppressed error suppressed)))
+    error))
+
+(defn- attempt-error [f]
+  (try
+    (f)
+    nil
+    (catch Throwable t
+      t)))
+
+(defn- release-media-errors [runtime medias]
+  (into []
+        (keep (fn [media]
+                (attempt-error #((:release-media! runtime) media))))
+        medias))
+
+(defn- throw-errors! [errors]
+  (when-let [error (combine-errors errors)]
+    (throw error)))
+
+(defn- failed-result [media error]
+  {:media media
+   :parse-status MediaParsedStatus/FAILED
+   :error error})
+
+(defn- start-failed-result [media]
+  (failed-result
+   media
+   (ex-info "The native media parse request did not start."
+            {:reason :start-failed})))
+
+(defn- timeout-result [media timeout-ms]
+  {:media media
+   :parse-status MediaParsedStatus/TIMEOUT
+   :error (ex-info "Media parsing timed out."
+                   {:reason :timeout
+                    :timeout-ms timeout-ms})})
+
+(defn- interrupted-result [media]
+  (failed-result
+   media
+   (ex-info "Media parsing was interrupted." {:reason :cancelled})))
+
+(defn- stop-with-error [runtime media]
+  (attempt-error #((:stop-parse! runtime) media)))
+
+(defn- parse-while-attached! [runtime media timeout-ms parse-flags completion]
+  (let [start-outcome (try
+                        [:ok ((:start-parse! runtime)
+                              media
+                              timeout-ms
+                              parse-flags)]
+                        (catch Throwable t
+                          [:error t]))]
+    (if (= :error (first start-outcome))
+      (failed-result media
+                     (combine-errors [(second start-outcome)
+                                      (stop-with-error runtime media)]))
+      (if-not (second start-outcome)
+        (start-failed-result media)
+        (try
+          {:media media
+           :parse-status (.get ^CompletableFuture completion
+                               (long timeout-ms)
+                               TimeUnit/MILLISECONDS)}
+          (catch TimeoutException _
+            (let [result (timeout-result media timeout-ms)]
+              (if-let [stop-error (stop-with-error runtime media)]
+                (assoc result :error
+                       (combine-errors [(:error result) stop-error]))
+                result)))
+          (catch InterruptedException _
+            (.interrupt (Thread/currentThread))
+            (let [result (interrupted-result media)]
+              (if-let [stop-error (stop-with-error runtime media)]
+                (assoc result :error
+                       (combine-errors [(:error result) stop-error]))
+                result)))
+          (catch ExecutionException e
+            (failed-result media (.getCause e))))))))
+
+(defn- parse-media! [runtime media timeout-ms parse-flags]
+  (let [^CompletableFuture completion (CompletableFuture.)
+        event-listener ((:new-listener runtime)
+                        (fn [_media status]
+                          (.complete completion status)))
+        add-error (attempt-error
+                   #((:add-listener! runtime) media event-listener))]
+    (if add-error
+      (let [remove-error
+            (attempt-error
+             #((:remove-listener! runtime) media event-listener))]
+        (if remove-error
+          (throw (combine-errors [add-error remove-error]))
+          (failed-result media add-error)))
+      (let [parse-outcome (try
+                            (parse-while-attached! runtime
+                                                   media
+                                                   timeout-ms
+                                                   parse-flags
+                                                   completion)
+                            (catch Throwable t
+                              (failed-result media t)))
+            remove-error (attempt-error
+                          #((:remove-listener! runtime)
+                            media
+                            event-listener))]
+        (if remove-error
+          (throw (combine-errors [(:error parse-outcome) remove-error]))
+          parse-outcome)))))
+
+(defn- create-children! [runtime media-list]
+  (let [media-count ((:media-list-size runtime) media-list)]
+    (loop [index 0
+           children []]
+      (if (= index media-count)
+        {:children children}
+        (let [child-outcome
+              (try
+                [:ok ((:new-list-media! runtime) media-list index)]
+                (catch Throwable t
+                  [:error t]))]
+          (if (= :error (first child-outcome))
+            {:children []
+             :error (combine-errors
+                     (into [(second child-outcome)]
+                           (release-media-errors runtime children)))}
+            (recur (inc index) (conj children (second child-outcome)))))))))
+
+(defn- owned-subitems! [runtime media]
+  (let [list-outcome (try
+                       [:ok ((:new-media-list! runtime) media)]
+                       (catch Throwable t
+                         [:error t]))]
+    (if (= :error (first list-outcome))
+      {:children []
+       :error (second list-outcome)}
+      (if-let [media-list (second list-outcome)]
+        (let [children-outcome
+              (try
+                (create-children! runtime media-list)
+                (catch Throwable t
+                  {:children [] :error t}))
+              {:keys [children error]} children-outcome
+              list-error (attempt-error
+                          #((:release-media-list! runtime) media-list))]
+          (if-let [ownership-error (combine-errors [error list-error])]
+            {:children []
+             :error (combine-errors
+                     (into [ownership-error]
+                           (release-media-errors runtime children)))}
+            {:children children}))
+        {:children []}))))
 
 (defn process-subitems
+  "Creates and realizes the child media wrappers owned by `media`.
+
+  The temporary `MediaList` is always released. The caller owns every returned
+  child `Media`."
   [^Media media]
-  (when-let [subitems (.subitems media)]
-    (when-let [media-list (.newMediaList subitems)]
-      (let [media-api (.media media-list)
-            count (.count media-api)]
-        (when (> count 0)
-          (vec (for [i (range count)]
-                 (.newMedia media-api i))))))))
+  (let [{:keys [children error]} (owned-subitems! native-runtime media)]
+    (if error
+      (throw error)
+      (when (seq children)
+        children))))
 
-(defn parse-media-to-channel
-  "Parse a media and send result to channel. Assumes channel will be closed by caller."
-  [^Media media timeout-ms parse-flags chan]
-  (try
-    (-> media
-        (.events)
-        (.addMediaEventListener
-         (listener/parse-event-listener
-          (fn [^Media m ^MediaParsedStatus status]
-            (go (>! chan {:media m :parse-status status}))))))
-    (.parse (.parsing media) (or timeout-ms -1) parse-flags)
-    (catch Throwable t
-      (go (>! chan {:media media :parse-status MediaParsedStatus/FAILED :error t})))))
+(defn- result-with-error [result error]
+  (if error
+    (failed-result (:media result)
+                   (combine-errors [(:error result) error]))
+    result))
 
-(defn parse-media-recursive
-  "Recursively parse a media item and all its subitems.
-   Returns a channel that will contain parsed media items with their status.
-   current-depth tracks how deep we are in the recursion.
-   recurse-limit sets the maximum depth (nil for unlimited)."
-  [^Media media {:keys [exclude-containers? current-depth recurse-limit timeout-ms parse-flags] :as opts}]
-  (let [<out-chan (chan)]
-    (go
-      (let [<parse (chan 1)
-            ;; track if we need to release this media
-            should-release? (atom false)]
+(defn- child-work [children depth]
+  (mapv (fn [media]
+          {:media media
+           :depth (inc depth)})
+        children))
+
+(defn- parse-work-item!
+  [runtime pending results cleanup-errors opts]
+  (let [{:keys [depth media]} (first pending)
+        parse-result (parse-media! runtime
+                                   media
+                                   (:timeout-ms opts)
+                                   (:parse-flags opts))
+        {:keys [children error]} (owned-subitems! runtime media)]
+    (try
+      (let [parse-result (result-with-error parse-result error)
+            has-children? (seq children)
+            at-depth-limit? (and (:depth-limit opts)
+                                 (>= depth (:depth-limit opts)))
+            keep-media? (or (not (:exclude-containers? opts))
+                            (not has-children?)
+                            at-depth-limit?)
+            released-children (if at-depth-limit? children [])
+            next-children (if at-depth-limit? [] children)
+            releases (concat
+                      (when-not keep-media? [media])
+                      released-children)
+            remaining (subvec pending 1)
+            next-pending (into (child-work next-children depth) remaining)
+            next-results (cond-> results
+                           keep-media? (conj parse-result))
+            next-errors (into cleanup-errors
+                              (release-media-errors runtime releases))]
+        {:cleanup-errors next-errors
+         :pending next-pending
+         :results next-results})
+      (catch Throwable t
+        (throw-errors!
+         (into [t] (release-media-errors runtime children)))))))
+
+(defn- parse-worklist! [runtime root-medias opts]
+  (loop [pending (mapv (fn [media]
+                         {:media media
+                          :depth 0})
+                       root-medias)
+         results []
+         cleanup-errors []]
+    (if (seq pending)
+      (let [step-outcome
+            (try
+              [:ok (parse-work-item! runtime
+                                     pending
+                                     results
+                                     cleanup-errors
+                                     opts)]
+              (catch Throwable t
+                [:error t]))]
+        (if (= :error (first step-outcome))
+          (throw-errors!
+           (concat
+            [(second step-outcome)]
+            cleanup-errors
+            (release-media-errors runtime (map :media pending))
+            (release-media-errors runtime (map :media results))))
+          (let [{:keys [cleanup-errors pending results]}
+                (second step-outcome)]
+            (recur pending results cleanup-errors))))
+      (if (seq cleanup-errors)
+        (throw-errors!
+         (into cleanup-errors
+               (release-media-errors runtime (map :media results))))
+        results))))
+
+(defn- create-root-medias! [runtime factory paths]
+  (loop [remaining (seq paths)
+         medias []]
+    (if-let [path (first remaining)]
+      (let [media-outcome
+            (try
+              [:ok ((:new-media! runtime) factory (protocols/mrl path))]
+              (catch Throwable t
+                [:error t]))]
+        (if (= :error (first media-outcome))
+          (throw-errors!
+           (into [(second media-outcome)]
+                 (release-media-errors runtime medias)))
+          (recur (next remaining) (conj medias (second media-outcome)))))
+      medias)))
+
+(defn- metadata-results! [runtime media-results]
+  (let [status-converter (or (:enum->kw enum-media-parsed-status)
+                             (fn [^MediaParsedStatus status]
+                               (keyword "parse-status"
+                                        (.toLowerCase (.name status)))))
+        metadata-outcome
         (try
-          (parse-media-to-channel media timeout-ms parse-flags <parse)
-          ;; wait for parse result
-          (when-let [{:keys [media] :as result} (<! <parse)]
-            (close! <parse)
-            ;; process subitems
-            (let [subitems (process-subitems media)
-                  has-subitems? (seq subitems)
-                  at-depth-limit? (and recurse-limit (>= current-depth recurse-limit))]
-
-              ;; determine if we're keeping this media
-              (if (or (not exclude-containers?)
-                      (not has-subitems?)
-                      at-depth-limit?)
-                ;; We're returning this media with its status
-                (>! <out-chan result)
-                ;; we're NOT returning this media, we must release it
-                (reset! should-release? true))
-
-              ;; Process subitems recursively if not at depth limit
-              (when (and has-subitems? (not at-depth-limit?))
-                (let [sub-chans (mapv #(parse-media-recursive % (update opts :current-depth inc))
-                                      subitems)]
-                  ;; collect all results from sub-parsing
-                  (doseq [<sub-chan sub-chans]
-                    (loop []
-                      (when-let [sub-result (<! <sub-chan)]
-                        (>! <out-chan sub-result)
-                        (recur))))))))
-
-          ;; Release this media if we didn't send it downstream
-          (when @should-release?
-            (.release media))
-
+          [:ok
+           (mapv (fn [{:keys [error media parse-status]}]
+                   (cond-> ((:media-info runtime) media)
+                     parse-status (assoc :parse-status
+                                         (status-converter parse-status))
+                     error (assoc :error error)))
+                 media-results)]
           (catch Throwable t
-            (tap> [:error "Error parsing media" (.getMessage t) t])
-            (.release media)
-            (throw t))
-          (finally
-            (close! <out-chan)))))
-    <out-chan))
+            [:error t]))
+        release-errors (release-media-errors runtime (map :media media-results))
+        error (combine-errors
+               (into (when (= :error (first metadata-outcome))
+                       [(second metadata-outcome)])
+                     release-errors))]
+    (if error
+      (throw error)
+      (second metadata-outcome))))
+
+(defn- transform-results! [runtime media-results transform consumes-media?]
+  (let [outcome (try
+                  [:ok (transform runtime media-results)]
+                  (catch Throwable t
+                    [:error t]))
+        release-errors (if (and (= :error (first outcome))
+                                (not consumes-media?))
+                         (release-media-errors runtime
+                                               (map :media media-results))
+                         [])
+        error (combine-errors
+               (concat
+                (when (= :error (first outcome))
+                  [(second outcome)])
+                release-errors))]
+    (if error
+      (throw error)
+      (second outcome))))
+
+(defn- execute-request! [paths opts transform consumes-media?]
+  (let [runtime (or (::runtime opts) native-runtime)
+        own-factory? (nil? (:media-player-factory opts))
+        factory (or (:media-player-factory opts)
+                    ((:new-factory! runtime)))
+        request-outcome
+        (try
+          (let [parse-flags ((:parse-flags runtime) (:parse-flags opts))
+                parse-opts (assoc opts :parse-flags parse-flags)
+                root-medias (create-root-medias! runtime factory paths)
+                media-results (parse-worklist! runtime root-medias parse-opts)]
+            [:ok (transform-results! runtime
+                                     media-results
+                                     transform
+                                     consumes-media?)])
+          (catch Throwable t
+            [:error t]))
+        factory-error (when own-factory?
+                        (attempt-error
+                         #((:release-factory! runtime) factory)))
+        transfer-cleanup-errors
+        (if (and factory-error
+                 (= :ok (first request-outcome))
+                 (not consumes-media?))
+          (release-media-errors runtime
+                                (map :media (second request-outcome)))
+          [])
+        error (combine-errors
+               (concat
+                (when (= :error (first request-outcome))
+                  [(second request-outcome)])
+                [factory-error]
+                transfer-cleanup-errors))]
+    (if error
+      (throw error)
+      (second request-outcome))))
+
+(def default-parse-options
+  {:exclude-containers? true
+   :parse-flags [:parse-flag/fetch-local :parse-flag/parse-local]
+   :timeout-ms 5000})
 
 (defn parse-medias-recursive
-  "Parse multiple media paths recursively, returning a promise that will resolve to all discovered media items with their parse status.
-   Options:
-   - :exclude-containers? - if true, directories/playlists won't be in results, only their contents (default: true)
-   - :depth-limit - maximum depth to recurse (nil or omitted for unlimited)
-   - :timeout-ms - timeout in milliseconds for each parse operation (default: 5000)
-   - :parse-flags - flags to use for parsing (default: [:parse-flag/fetch-local :parse-flag/parse-local])
-   - :media-player-factory - MediaPlayerFactory instance to use for parsing (default: a new instance)
+  "Parses paths recursively and returns owned vlcj media wrappers.
 
-   Returns a promise that resolves to a vector of {:media Media :parse-status MediaParsedStatus}"
+  The returned promise settles to a vector of maps containing `:media` and
+  `:parse-status`, or to a `Throwable`. The caller owns every returned `Media`.
+
+  Options include `:exclude-containers?`, `:depth-limit`, `:timeout-ms`,
+  `:parse-flags`, and `:media-player-factory`."
   ([paths]
    (parse-medias-recursive paths {}))
-  ([paths {:keys [depth-limit parse-flags media-player-factory exclude-containers? timeout-ms]
-           :or {exclude-containers? true
-                parse-flags [:parse-flag/fetch-local :parse-flag/parse-local]}
-           :as _opts}]
+  ([paths opts]
    (if (seq paths)
-     (let [own-factory? (nil? media-player-factory)
-           ^MediaPlayerFactory factory (or media-player-factory (MediaPlayerFactory.))
-           mrls (map protocols/mrl paths)
-           medias (make-medias! factory mrls)
-           parse-flags (into-array ParseFlag (map (:kw->enum enum-parse-flag) parse-flags))
-           result-chan (chan)
-           result (promise)]
-       (go
-         (try
-            ;; Parse all root media items (starting at depth 0)
-           (let [parse-chans (mapv #(parse-media-recursive %
-                                                           {:exclude-containers? exclude-containers?
-                                                            :current-depth 0
-                                                            :recurse-limit depth-limit
-                                                            :timeout-ms timeout-ms
-                                                            :parse-flags parse-flags}) medias)
-                 results (atom [])]
-              ;; collect all results
-             (doseq [parse-chan parse-chans]
-               (loop []
-                 (when-let [media-result (<! parse-chan)]
-                   (swap! results conj media-result)
-                   (recur))))
-              ;; signal completion
-             (let [final-results @results]
-               (>! result-chan final-results)
-               (close! result-chan)))
-           (catch Throwable t
-              ;; On error, close with exception
-             (tap> [:error "Error in parse-medias-recursive" t])
-             (>! result-chan t)
-             (close! result-chan))))
-
-       (go
-         (let [final-results (<! result-chan)]
-           (when own-factory? (.release factory))
-           (deliver result final-results)))
-       result)
-     (doto (promise) (deliver [])))))
+     (let [opts (merge default-parse-options opts)]
+       (enqueue!
+        #(execute-request! paths opts (fn [_runtime results] results) false)))
+     (delivered-promise []))))
 
 (defn parse-meta
-  "Parse media files recursively and extract their metadata as Clojure data structures.
+  "Parses paths recursively and returns eagerly realized Clojure metadata.
 
-   This function wraps parse-medias-recursive to provide a higher-level API that:
-   - Automatically extracts metadata from parsed Media objects using media->info
-   - Includes the parse status (:parse-status) in the metadata
-   - Releases Media objects after extraction to prevent memory leaks
-   - Returns plain Clojure data instead of Java Media objects
-
-   Parameters:
-   - paths: A sequence of file paths, directory paths, or URLs to parse
-   - opts: Options map (see parse-medias-recursive for all options)
-
-   Returns:
-   A promise that will resolve to either:
-   - A vector of metadata maps with :parse-status included on success
-   - A Throwable on error
-
-   The metadata maps contain fields from media->info plus:
-   - :parse-status - one of :done, :failed, :skipped, :timeout
-
-   Example:
-   (let [metadata-promise (parse-meta [\"/music/album\"]
-                                     {:timeout-ms 10000})]
-     (println @metadata-promise))
-   ;; => [{:title \"Song 1\" :duration 180000 :parse-status :done} ...]"
+  Options are the same as [[parse-medias-recursive]]. The returned promise
+  settles to a metadata vector or a `Throwable`. All native media wrappers are
+  released before the promise settles."
   ([paths]
    (parse-meta paths {}))
   ([paths opts]
-   (let [result (promise)
-         status-converter (or (:enum->kw enum-media-parsed-status)
-                              (fn [^MediaParsedStatus status] (keyword "parse-status"
-                                                                       (.toLowerCase (.name status)))))]
-     (future
-       (try
-         (let [media-results (deref (parse-medias-recursive paths opts))]
-           (try
-             (->> media-results
-                  (map (fn [{:keys [media parse-status error]}]
-                         (cond-> (media->info media)
-                           parse-status (assoc :parse-status (status-converter parse-status))
-                           error (assoc :error error))))
-                  (deliver result))
-             (finally
-               (when (sequential? media-results)
-                 (release-medias! media-results)))))
-         (catch Throwable t
-           (deliver result t))))
-     result)))
-
-(comment
-  (vals (:enum->kw-map (enum/create-enum-converters ParseFlag)))
-  (:kw->enum-map (enum/create-enum-converters ParseFlag))
-  (enum/enum->keyword MediaType/FILE)
-  (enum/keyword->enum MediaType :media-type/file)
-  (protocols/coerce-to-mrl (protocols/coerce-to-mrl "/home/ramblurr/src/sparklestories/media/audiobooks/A.A. Milne/Disc 1 - Introducing Pooh and Piglet/"))
-  (protocols/coerce-to-mrl "/home/ramblurr/src/sparklestories/media/audiobooks/A.A. Milne/Disc 1 - Introducing Pooh and Piglet/Story 1 - In which we are introduced.mp3")
-  (def factory (MediaPlayerFactory.))
-  (let [m1 "/home/ramblurr/src/sparklestories/media/audiobooks/A.A. Milne/Disc 1 - Introducing Pooh and Piglet/Story 1 - In which we are introduced.mp3"
-        m2 "/home/ramblurr/src/sparklestories/media/audiobooks/A.A. Milne/Disc 1 - Introducing Pooh and Piglet/"
-        m3 "/home/ramblurr/src/sparklestories/media/audiobooks/A.A. Milne/"
-        m4 "/home/ramblurr/src/sparklestories/media/playlists/LibbyDish1.m3u"
-        #_#_medias (parse-medias-sync factory [m1 m2 m3])]
-    #_(parse [m3] {:media-player-factory factory})
-    #_(->>
-       (parse-medias-recursive [m3] {:media-player-factory factory})
-       deref)
-    @(parse-meta [m4] {:media-player-factory factory})
-    #_(try
-        (-> medias
-            (nth 2) ;; a directory
-            (.subitems)
-            (.newMediaList) ;; gets a MediaList, a native list of Medias
-            (.media)        ;; get the media api
-            (.newMedia 0) ;; create a media object for the first item in the list
-            (media->info) ;; convert to our friendly map
-            )
-
-        (finally
-          (release-medias! medias))))
-  ;; rcf
-
-  ;;
-  )
+   (if (seq paths)
+     (let [opts (merge default-parse-options opts)]
+       (enqueue!
+        #(execute-request! paths opts metadata-results! true)))
+     (delivered-promise []))))
