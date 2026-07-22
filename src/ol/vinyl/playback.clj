@@ -76,9 +76,13 @@
 (defn get-current [instance]
   (queue/get-current (queue instance)))
 
-(defn release! [{:ol.vinyl.impl/keys [state_] :as instance}]
-  (bus/unsubscribe-impl! instance (get-in @state_ [:playback :sub-id]))
-  (set-queue instance (queue/clear-all (queue instance))))
+(defn release! [{:ol.vinyl.impl/keys [state_]}]
+  (swap! state_
+         (fn [state]
+           (-> state
+               (update :subscriptions dissoc
+                       (get-in state [:playback :sub-id]))
+               (update-in [:playback :queue] queue/clear-all)))))
 
 (defn expand-paths [instance tracks]
   (let [result @(parsing/parse-meta tracks {:media-player-factory (get-in instance [:ol.vinyl.impl/player :vlc/media-player-factory])})]

@@ -5,38 +5,45 @@
    [clojure.core.async :as async]
    [ol.vinyl.commands :as cmd]
    [ol.vinyl.interop.player :as player]
+   [ol.vinyl.lifecycle :as lifecycle]
    [ol.vinyl.util :as util]))
 
-(defn ensure-not-released! [{:ol.vinyl.impl/keys [state_]}]
-  (when (= @state_ :released)
-    (throw (ex-info "Player has been released and cannot be used anymore." {}))))
+(defn ensure-not-released! [{:ol.vinyl.impl/keys [lifecycle]}]
+  (lifecycle/ensure-active! lifecycle))
 
 (defn notify-subs [subscriptions event]
   (doseq [[sub-id {:keys [pred cb]}] subscriptions]
-    (when (pred event)
-      (util/thread
-        (try
+    (util/thread
+      (try
+        (when (pred event)
           (if event
             (cb event)
             (tap> [:warn "Subscriber callback received nil event"
-                   {:sub-id sub-id :event event}]))
-          (catch Exception e
-            (tap> [:error "Uncaught exception in subscriber"
-                   {:sub-id sub-id
-                    :event event
-                    :error (.getMessage e)}])))))))
+                   {:sub-id sub-id :event event}])))
+        (catch Exception error
+          (tap> [:error "Uncaught exception in subscriber"
+                 {:sub-id sub-id
+                  :event event
+                  :error (.getMessage error)}]))))))
 
-(defn dispatch-control-command [instance cmd]
+(defn dispatch-control-command
+  [{:ol.vinyl.impl/keys [lifecycle player] :as instance} command]
   (ensure-not-released! instance)
-  (if (cmd/native? cmd)
-    (player/run-on-player-thread (:ol.vinyl.impl/player instance)
-                                 (fn []
-                                   (try
-                                     (ensure-not-released! instance)
-                                     (cmd/dispatch instance cmd)
-                                     (catch Exception e
-                                       (tap> [:error "Error processing native control command" e])))))
-    (cmd/dispatch instance cmd)))
+  (if (cmd/native? command)
+    (player/run-on-player-thread
+     player
+     (fn []
+       (try
+         (lifecycle/with-use
+           lifecycle
+           (fn []
+             (cmd/dispatch instance command)))
+         (catch Exception error
+           (tap> [:error "Error processing native control command" error])))))
+    (lifecycle/with-use
+      lifecycle
+      (fn []
+        (cmd/dispatch instance command)))))
 
 (defn start-control-loop! [{:ol.vinyl.impl/keys [<control <close] :as instance}]
   (util/thread
@@ -96,13 +103,20 @@
     :else (throw (ex-info "Invalid event predicate" {:event-pred event-pred}))))
 
 (defn subscribe-impl!
-  [{:ol.vinyl.impl/keys [state_]} event-pred callback-fn]
+  [{:ol.vinyl.impl/keys [lifecycle state_]} event-pred callback-fn]
   (assert (fn? callback-fn) "Callback function must be a function")
-  (let [subscription-id (java.util.UUID/randomUUID)
-        pred-fn (normalize-event-predicate event-pred)]
-    (swap! state_ assoc-in [:subscriptions subscription-id] {:pred pred-fn :cb callback-fn})
-    subscription-id))
+  (lifecycle/with-use
+    lifecycle
+    (fn []
+      (let [subscription-id (java.util.UUID/randomUUID)
+            pred-fn (normalize-event-predicate event-pred)]
+        (swap! state_ assoc-in [:subscriptions subscription-id]
+               {:pred pred-fn :cb callback-fn})
+        subscription-id))))
 
 (defn unsubscribe-impl!
-  [{:ol.vinyl.impl/keys [state_]} subscription-id]
-  (swap! state_ update :subscriptions dissoc subscription-id))
+  [{:ol.vinyl.impl/keys [lifecycle state_]} subscription-id]
+  (lifecycle/with-use
+    lifecycle
+    (fn []
+      (swap! state_ update :subscriptions dissoc subscription-id))))

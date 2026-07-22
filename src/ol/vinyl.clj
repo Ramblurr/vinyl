@@ -16,23 +16,19 @@
    [ol.vinyl.bus :as bus]
    [ol.vinyl.commands :as cmds]
    [ol.vinyl.factory :as factory]
-   [ol.vinyl.impl :as impl]
-   [ol.vinyl.playback :as playback])
+   [ol.vinyl.impl :as impl])
   (:import
    [uk.co.caprica.vlcj.player.base Equalizer]))
 
 (defn init!
-  "Creating a [[uk.co.caprica.vlcj.factory.MediaPlayerFactory]] is required for using vlcj,
-  creating one initializes the native libraries and memory space. This can take a few seconds.
+  "Initializes and returns the singleton VLC media-player factory.
 
-  This init! function gives you control over when the factory is intialized. It
-  will create a fresh factory and return it.  It caches the factory in a var so
-  it can be re-used. You can use [[factory]] to get the factory or [[deinit]] to
-  release it (not recommended).
+  The first call creates the native [[uk.co.caprica.vlcj.factory.MediaPlayerFactory]].
+  Later and concurrent calls return the same factory.
 
-  Some other functions in this namespace accept a `:media-player-factory`
-  option, you should pass the factory created here to those functions, otherwise
-  they will create their own during which they will block for a few seconds."
+  Use [[factory]] to inspect the singleton and [[deinit!]] to release it.
+  Factory deinitialization is generally not recommended while VLC resources
+  remain active."
   []
   (factory/init!))
 
@@ -56,36 +52,36 @@
   factory/singleton)
 
 (defn create-player
-  "Creates and initializes a new media player instance.
+  "Creates and initializes an opaque media player.
 
-  This is the entry point for using the library. It sets up the underlying
-  vlcj resources, the internal state machine, and the event bus. The returned
-  player is an atom containing the entire state of the player, which can be
-  safely dereferenced at any time for inspection.
+  The returned player owns its native media player and internal listeners.
+  Keep a strong reference to it while it is active and call [[release-player!]]
+  when it is no longer needed.
 
-  Opts a map of:
-  - `:media-player-factory`: An optional pre-initialized [[uk.co.caprica.vlcj.factory/MediaPlayerFactory]] instance.
-    If not provided, a new factory will be created with default settings. If provided, you are responsible for releasing it
+  Options:
 
-  Returns an opaque player instance, which you must keep a hard reference to to
-  prevent it from being garbage collected. If a player is GCed you will see
-  unpredictable behavior, including fatal JVM crashes.
+  | key                     | description |
+  |-------------------------|-------------|
+  | `:media-player-factory` | Optional preinitialized factory. The caller owns it and must keep it active until this player is released. |
 
-  When you are finished with the player, you must call `release-player!`
-
-  It is always a better strategy to reuse player instances, rather than
-  repeatedly creating and destroying them."
+  Without a supplied factory, Vinyl creates and owns a factory for this player.
+  Reusing player instances is preferable to repeatedly creating and releasing
+  native players."
   ([] (create-player {}))
   ([opts]
    (impl/create-player-impl opts)))
 
 (defn release-player!
-  "Stops playback and releases all underlying native VLC resources.
+  "Synchronously stops playback and releases the player's native resources.
 
-  This function MUST be called when you are finished with a player instance
-  to prevent memory and resource leaks. It is idempotent and safe to call
-  multiple times. After release, the player is in a terminal state and
-  cannot be used again."
+  Cleanup executes at most once.
+  Concurrent and repeated callers wait for and observe the same result.
+  Successful release returns `nil`.
+  A cleanup failure is cached and rethrown without retrying non-idempotent
+  native release operations.
+
+  The player becomes terminal as soon as release begins and cannot be used
+  again, including after a failed release."
   [player]
   (impl/release-player-impl! player))
 
@@ -323,7 +319,7 @@ To return a useful value, an audio output must be active (i.e. the media must be
 ;; ...even more sugar
 
 (defn list-queue [player]
-  (playback/list-all player))
+  (impl/list-queue-impl player))
 
 ;; --- Media Parsing API --
 
