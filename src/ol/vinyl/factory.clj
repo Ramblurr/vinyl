@@ -8,11 +8,14 @@
 
 (def singleton nil)
 
+(defn- new-media-player-factory! []
+  (MediaPlayerFactory.))
+
 (defn init! []
   (alter-var-root #'singleton
-                  (fn [_]
-                    (MediaPlayerFactory.)))
-  singleton)
+                  (fn [factory]
+                    (or factory
+                        (new-media-player-factory!)))))
 
 (defn deinit! []
   (when singleton
