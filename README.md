@@ -31,6 +31,30 @@ Limitations:
 - libvlc 3.x does not support gapless playback (might change with 4.x)
 - libvlc 4.x has nice support for replaygain and EBU R128, but it's not exposed yet via vlcj
 
+## Player lifecycle
+
+Players are opaque values that own native resources. Keep a strong reference to
+each player while it is active, and release it when it is no longer needed.
+Applications may structure ownership differently. For example, a lexically
+scoped player can be released in a `finally` block:
+
+```clojure
+(require '[ol.vinyl :as vinyl])
+
+(let [player (vinyl/create-player)]
+  (try
+    @(vinyl/parse-meta player ["/srv/media"])
+    (finally
+      (vinyl/release-player! player))))
+```
+
+`release-player!` runs synchronously and exactly once, returns `nil` on success,
+and makes the player terminal as soon as release begins. Calls admitted before
+release may finish; later calls fail.
+
+A factory supplied through `:media-player-factory` remains caller-owned and must
+outlive every player that uses it. Recreate players after loading a new Vinyl
+version into a running JVM.
 
 [fairybox]: https://github.com/Ramblurr/fairybox/
 [vlcj]: https://github.com/caprica/vlcj

@@ -115,6 +115,8 @@
 
   The `callback-fn` will be invoked asynchronously when an event matching
   `event-pred` occurs.
+  Function predicates and callbacks both execute asynchronously; callers must
+  not rely on thread identity or event-to-event ordering.
 
   - `player`: The player instance to subscribe to.
   - `callback-fn`: A single-argument function that will receive the event map.
@@ -318,7 +320,11 @@ To return a useful value, an audio output must be active (i.e. the media must be
 ;; --- Playback Audio Queue Query API --
 ;; ...even more sugar
 
-(defn list-queue [player]
+(defn list-queue
+  "Returns a snapshot of the active `player`'s playback queue.
+
+  Throws if player release has begun."
+  [player]
   (impl/list-queue-impl player))
 
 ;; --- Media Parsing API --
@@ -326,13 +332,17 @@ To return a useful value, an audio output must be active (i.e. the media must be
 (defn parse-meta
   "Parse paths recursively and extract their metadata as Clojure data structures.
 
+  `player` must be an active value returned by [[create-player]]. An accepted
+  parse keeps the player active until the returned promise settles. Malformed
+  player values throw `ExceptionInfo` with `:type` `:ol.vinyl/invalid-player`.
+
    Parameters:
    - player: A player instance, see [[create-player]]
    - paths: A sequence of file paths, directory paths, or URLs to parse
 
    Returns a promise that will resolve to either:
    - A vector of metadata maps
-   - A Throwable on error "
+   - A Throwable on error"
 
   [player paths]
   (impl/parse-meta player paths))
