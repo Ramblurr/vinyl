@@ -913,6 +913,12 @@
     "org/junit/junit-bom/5.14.4/junit-bom-5.14.4.pom": {
       "sha256": "5706e8f29a0a07f56efbbea4a0670793414194bb8d24d8143ba1e787a2f32856"
     },
+    "org/ow2/asm/asm/9.2/asm-9.2.jar": {
+      "sha256": "b9d4fe4d71938df38839f0eca42aaaa64cf8b313d678da036f0cb3ca199b47f5"
+    },
+    "org/ow2/asm/asm/9.2/asm-9.2.pom": {
+      "sha256": "dfb12a1b224bf01be1fd604020466f894241bcb645dcce395edd8cd6f8a50df4"
+    },
     "org/ow2/asm/asm/9.9.1/asm-9.9.1.jar": {
       "sha256": "6f3828a215c920059a5efa2fb55c233d6c54ec5cadca99ce1b1bdd10077c7ddd"
     },
@@ -921,6 +927,9 @@
     },
     "org/ow2/ow2/1.5.1/ow2-1.5.1.pom": {
       "sha256": "321ddbb7ee6fe4f53dea6b4cd6db74154d6bfa42391c1f763b361b9f485acf05"
+    },
+    "org/ow2/ow2/1.5/ow2-1.5.pom": {
+      "sha256": "0f8a1b116e760b8fe6389c51b84e4b07a70fc11082d4f936e453b583dd50b43b"
     },
     "org/slf4j/jcl-over-slf4j/1.7.36/jcl-over-slf4j-1.7.36.jar": {
       "sha256": "ab57ca8fd223772c17365d121f59e94ecbf0ae59d08c03a3cb5b81071c019195"
